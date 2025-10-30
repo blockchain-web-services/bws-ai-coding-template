@@ -1,0 +1,98 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: "AWS::Serverless-2016-10-31"
+
+Description: >
+  CloudFormation template for DynamoDB tables.
+  This is a generic example - customize for your project's data layer.
+
+Parameters:
+  RepositoryName:
+    Type: String
+    Description: The Git repo name.
+
+  RepositoryBranchName:
+    Type: String
+    Description: Environment stage (e.g. staging, prod).
+
+Conditions:
+  IsProd: !Equals [!Ref RepositoryBranchName, prod]
+  IsNotProd: !Not [Condition: IsProd]
+
+Resources:
+  ################################################################
+  # EXAMPLE TABLE - Customize for your project
+  ################################################################
+
+  # Example: Simple items table with hash key
+  DEMOITEMSDynamoDBTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${RepositoryBranchName}-DEMO_ITEMS"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: "ITEM_ID"
+          AttributeType: "S"
+      KeySchema:
+        - AttributeName: "ITEM_ID"
+          KeyType: "HASH"
+      Tags:
+        - Key: Environment
+          Value: !Ref RepositoryBranchName
+        - Key: Project
+          Value: !Ref RepositoryName
+
+  # Example: Users table with hash key
+  DEMOUSERSDynamoDBTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${RepositoryBranchName}-DEMO_USERS"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: "USER_ID"
+          AttributeType: "S"
+      KeySchema:
+        - AttributeName: "USER_ID"
+          KeyType: "HASH"
+      Tags:
+        - Key: Environment
+          Value: !Ref RepositoryBranchName
+        - Key: Project
+          Value: !Ref RepositoryName
+
+  # Example: Table with hash and range key
+  DEMOSESSIONSDynamoDBTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${RepositoryBranchName}-DEMO_SESSIONS"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: "USER_ID"
+          AttributeType: "S"
+        - AttributeName: "SESSION_ID"
+          AttributeType: "S"
+      KeySchema:
+        - AttributeName: "USER_ID"
+          KeyType: "HASH"
+        - AttributeName: "SESSION_ID"
+          KeyType: "RANGE"
+      TimeToLiveSpecification:
+        Enabled: true
+        AttributeName: "TTL"
+      Tags:
+        - Key: Environment
+          Value: !Ref RepositoryBranchName
+        - Key: Project
+          Value: !Ref RepositoryName
+
+Outputs:
+  DEMOITEMSTableName:
+    Description: "Name of the DEMO_ITEMS table"
+    Value: !Ref DEMOITEMSDynamoDBTable
+
+  DEMOUSERSTableName:
+    Description: "Name of the DEMO_USERS table"
+    Value: !Ref DEMOUSERSDynamoDBTable
+
+  DEMOSESSIONSTableName:
+    Description: "Name of the DEMO_SESSIONS table"
+    Value: !Ref DEMOSESSIONSDynamoDBTable

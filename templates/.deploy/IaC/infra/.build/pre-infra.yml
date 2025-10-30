@@ -1,0 +1,40 @@
+version: 0.2
+
+# Pre-Infrastructure Deployment Build
+# Runs before deploying infrastructure CloudFormation stack
+# Use this to build, test, and package your Lambda functions
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: 20
+    commands:
+      - echo "Installing dependencies..."
+      - npm ci --production
+
+  pre_build:
+    commands:
+      - echo "Running pre-build checks..."
+      - echo "Branch - $CODEBUILD_WEBHOOK_HEAD_REF"
+      - echo "Environment - $TARGET_ENV"
+
+  build:
+    commands:
+      - echo "Building Lambda functions..."
+      - echo "Packaging code..."
+      - mkdir -p dist
+      - zip -r dist/code.zip . -x "*.git*" -x "node_modules/*" -x "test/*" -x "dist/*"
+
+  post_build:
+    commands:
+      - echo "Uploading artifacts to S3..."
+      - aws s3 cp dist/code.zip s3://devops-artifacts-${REPOSITORY_NAME}-${TARGET_ENV}/codebuild/codeartifacts/code.zip
+
+artifacts:
+  files:
+    - '.deploy/**/*'
+  name: BuildOutput
+
+cache:
+  paths:
+    - 'node_modules/**/*'

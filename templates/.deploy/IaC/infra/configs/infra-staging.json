@@ -1,0 +1,11 @@
+{
+  "Parameters": {
+    "RepositoryName": "your-repo-name",
+    "RepositoryBranchName": "staging",
+    "CodeArtifactS3Key": "code.zip"
+  },
+  "Tags": {
+    "Environment": "staging",
+    "ManagedBy": "CloudFormation"
+  }
+}

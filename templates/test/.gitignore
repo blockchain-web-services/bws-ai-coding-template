@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+
+# Worktree-specific files
+.env.worktree
+.worktree-info.json
+docker-compose.worktree.yml
+WORKTREE_CONTEXT.md
+
+# LocalStack data
+localstack-data/
+localstack-data-*/
+
+# Test outputs
+coverage/
+playwright-report/
+test-results/
+vitest-report/
+.temp/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db

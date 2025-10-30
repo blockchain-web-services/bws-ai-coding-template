@@ -1,0 +1,248 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: "AWS::Serverless-2016-10-31"
+
+Description: >
+  CloudFormation template for application infrastructure including Lambda functions,
+  S3 buckets, and Claude Code IAM user for debugging.
+
+Parameters:
+  RepositoryName:
+    Type: String
+    Description: The Git repo name.
+
+  RepositoryBranchName:
+    Type: String
+    Description: Environment stage (e.g. staging, prod).
+
+  CodeArtifactS3Key:
+    Type: String
+    Description: S3 key for Lambda code artifact.
+
+Conditions:
+  IsProd: !Equals [!Ref RepositoryBranchName, prod]
+  IsNotProd: !Not [Condition: IsProd]
+
+Globals:
+  Function:
+    Runtime: nodejs20.x
+    CodeUri:
+      Bucket: !Sub "devops-artifacts-${RepositoryName}-${RepositoryBranchName}"
+      Key: !Sub "codebuild/codeartifacts/${CodeArtifactS3Key}"
+    Timeout: 120
+    Environment:
+      Variables:
+        ENVIRONMENT: !Ref RepositoryBranchName
+        AWS_ACCOUNT_ID: !Ref "AWS::AccountId"
+
+Resources:
+  ################################################################
+  # CLAUDE CODE IAM USER (Read-Only Debugging Access)
+  ################################################################
+
+  ClaudeCodeUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: !Sub "claude-code-${RepositoryBranchName}"
+      Tags:
+        - Key: Environment
+          Value: !Ref RepositoryBranchName
+        - Key: Purpose
+          Value: "AI Assistant Debugging Access"
+
+  ClaudeCodeAccessKey:
+    Type: AWS::IAM::AccessKey
+    Properties:
+      UserName: !Ref ClaudeCodeUser
+
+  ClaudeCodeReadOnlyPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: ClaudeCodeReadOnlyPolicy
+      Users:
+        - !Ref ClaudeCodeUser
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          # Lambda - Read Only
+          - Sid: LambdaReadOnly
+            Effect: Allow
+            Action:
+              - lambda:GetFunction
+              - lambda:GetFunctionConfiguration
+              - lambda:ListFunctions
+              - lambda:ListLayers
+              - lambda:GetLayerVersion
+              - lambda:ListEventSourceMappings
+            Resource: "*"
+
+          # CloudWatch Logs - Read Only
+          - Sid: CloudWatchLogsReadOnly
+            Effect: Allow
+            Action:
+              - logs:DescribeLogGroups
+              - logs:DescribeLogStreams
+              - logs:GetLogEvents
+              - logs:FilterLogEvents
+              - logs:TailLogs
+            Resource: "*"
+
+          # DynamoDB - Read Only
+          - Sid: DynamoDBReadOnly
+            Effect: Allow
+            Action:
+              - dynamodb:DescribeTable
+              - dynamodb:ListTables
+              - dynamodb:GetItem
+              - dynamodb:Query
+              - dynamodb:Scan
+            Resource: "*"
+
+          # S3 - Read Only
+          - Sid: S3ReadOnly
+            Effect: Allow
+            Action:
+              - s3:ListBucket
+              - s3:GetObject
+              - s3:GetObjectVersion
+              - s3:ListAllMyBuckets
+            Resource: "*"
+
+          # Step Functions - Read Only
+          - Sid: StepFunctionsReadOnly
+            Effect: Allow
+            Action:
+              - states:ListStateMachines
+              - states:DescribeStateMachine
+              - states:ListExecutions
+              - states:DescribeExecution
+              - states:GetExecutionHistory
+            Resource: "*"
+
+          # EventBridge - Read Only
+          - Sid: EventBridgeReadOnly
+            Effect: Allow
+            Action:
+              - events:ListRules
+              - events:DescribeRule
+              - events:ListTargetsByRule
+            Resource: "*"
+
+          # CloudFormation - Read Only
+          - Sid: CloudFormationReadOnly
+            Effect: Allow
+            Action:
+              - cloudformation:DescribeStacks
+              - cloudformation:DescribeStackResources
+              - cloudformation:DescribeStackEvents
+              - cloudformation:GetTemplate
+              - cloudformation:ListStacks
+            Resource: "*"
+
+          # CodeBuild - Read Only
+          - Sid: CodeBuildReadOnly
+            Effect: Allow
+            Action:
+              - codebuild:BatchGetBuilds
+              - codebuild:BatchGetProjects
+              - codebuild:ListBuilds
+              - codebuild:ListProjects
+            Resource: "*"
+
+          # CodePipeline - Read Only
+          - Sid: CodePipelineReadOnly
+            Effect: Allow
+            Action:
+              - codepipeline:GetPipeline
+              - codepipeline:GetPipelineState
+              - codepipeline:GetPipelineExecution
+              - codepipeline:ListPipelines
+              - codepipeline:ListPipelineExecutions
+            Resource: "*"
+
+          # IAM - Limited Read (for debugging roles)
+          - Sid: IAMReadOnly
+            Effect: Allow
+            Action:
+              - iam:GetRole
+              - iam:GetRolePolicy
+              - iam:ListRolePolicies
+              - iam:ListAttachedRolePolicies
+              - iam:GetPolicy
+              - iam:GetPolicyVersion
+            Resource: "*"
+
+          # Explicitly DENY access to secrets
+          - Sid: DenySecrets
+            Effect: Deny
+            Action:
+              - secretsmanager:*
+              - ssm:GetParameter
+              - ssm:GetParameters
+              - ssm:GetParametersByPath
+              - kms:Decrypt
+            Resource: "*"
+
+  ################################################################
+  # S3 BUCKET
+  ################################################################
+
+  AppCacheBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${RepositoryBranchName}-${RepositoryName}-cache"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOldVersions
+            Status: Enabled
+            NoncurrentVersionExpirationInDays: 30
+      Tags:
+        - Key: Environment
+          Value: !Ref RepositoryBranchName
+        - Key: Project
+          Value: !Ref RepositoryName
+
+  ################################################################
+  # EXAMPLE LAMBDA FUNCTION
+  ################################################################
+
+  ExampleFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${RepositoryBranchName}-example-function"
+      Handler: index.handler
+      Description: "Example Lambda function - customize for your project"
+      Environment:
+        Variables:
+          S3_BUCKET_NAME: !Ref AppCacheBucket
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Sub "${RepositoryBranchName}-*"
+        - S3CrudPolicy:
+            BucketName: !Ref AppCacheBucket
+      Tags:
+        Environment: !Ref RepositoryBranchName
+        Project: !Ref RepositoryName
+
+Outputs:
+  ClaudeCodeAccessKeyId:
+    Description: "Access Key ID for Claude Code (store in ~/.aws/credentials)"
+    Value: !Ref ClaudeCodeAccessKey
+
+  ClaudeCodeAccessKeySecret:
+    Description: "Secret Access Key for Claude Code (store in ~/.aws/credentials)"
+    Value: !GetAtt ClaudeCodeAccessKey.SecretAccessKey
+
+  AppCacheBucketName:
+    Description: "Name of the S3 cache bucket"
+    Value: !Ref AppCacheBucket
+
+  ExampleFunctionArn:
+    Description: "ARN of the example Lambda function"
+    Value: !GetAtt ExampleFunction.Arn

@@ -1,0 +1,11 @@
+{
+  "Parameters": {
+    "RepositoryName": "your-repo-name",
+    "RepositoryBranchName": "prod",
+    "CodeArtifactS3Key": "code.zip"
+  },
+  "Tags": {
+    "Environment": "prod",
+    "ManagedBy": "CloudFormation"
+  }
+}

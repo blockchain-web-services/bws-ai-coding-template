@@ -1,0 +1,10 @@
+{
+  "Parameters": {
+    "RepositoryName": "your-repo-name",
+    "RepositoryBranchName": "staging"
+  },
+  "Tags": {
+    "Environment": "staging",
+    "ManagedBy": "CloudFormation"
+  }
+}

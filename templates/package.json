@@ -1,0 +1,23 @@
+{
+  "name": "your-project-name",
+  "version": "1.0.0",
+  "description": "Project with worktrees and parallel testing infrastructure",
+  "type": "module",
+  "scripts": {
+    "worktree:create": "node scripts/worktree/create-worktree.mjs",
+    "worktree:list": "node scripts/worktree/list-worktrees.mjs",
+    "worktree:merge": "node scripts/worktree/merge-worktree.mjs",
+    "worktree:remove": "node scripts/worktree/remove-worktree.mjs"
+  },
+  "keywords": [
+    "template",
+    "worktrees",
+    "parallel-testing",
+    "aws",
+    "cloudformation"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "devDependencies": {},
+  "dependencies": {}
+}

@@ -1,0 +1,10 @@
+{
+  "Parameters": {
+    "RepositoryName": "your-repo-name",
+    "RepositoryBranchName": "prod"
+  },
+  "Tags": {
+    "Environment": "prod",
+    "ManagedBy": "CloudFormation"
+  }
+}

@@ -1,0 +1,30 @@
+# Base Docker Compose Configuration
+# Uses docker-compose.override.yml for environment-specific settings
+# DO NOT hardcode ports or names here - they come from .env and override
+
+services:
+  localstack:
+    image: localstack/localstack:4.7.0
+    networks:
+      - app-network
+    environment:
+      - SERVICES=lambda,dynamodb,s3,iam,sts,events,stepfunctions
+      - LAMBDA_RUNTIME_ENVIRONMENT_TIMEOUT=60
+      - LAMBDA_IGNORE_ARCHITECTURE=1
+      - LAMBDA_REMOVE_CONTAINERS=true
+      - LAMBDA_KEEPALIVE_MS=600000
+      - LOCALSTACK_HOSTNAME=localhost.localstack.cloud
+      - DEBUG=${DEBUG:-1}
+      - PERSISTENCE=${PERSISTENCE:-0}
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - "./localstack-data:/var/lib/localstack"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  app-network:
+    driver: bridge

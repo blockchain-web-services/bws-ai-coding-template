@@ -1,0 +1,403 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: >
+  AWS CloudFormation Template for CI/CD deployment through AWS CodePipeline.
+  Deploys database and infrastructure stacks with pre/post build hooks.
+
+Parameters:
+  RepositoryOwner:
+    Type: String
+    Description: The related GitHub repo owner.
+    Default: your-github-username
+
+  RepositoryName:
+    Type: String
+    Description: The related GitHub repo name that triggers the pipeline.
+    Default: your-repo-name
+
+  RepositoryBranchName:
+    Type: String
+    Description: Git branch that triggers the pipeline (staging or prod).
+
+  GitHubSecret:
+    Type: String
+    NoEcho: true
+    Description: GitHub Personal Access Token to access the repository.
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "GitHub Repository Settings"
+        Parameters:
+          - RepositoryOwner
+          - RepositoryName
+          - RepositoryBranchName
+          - GitHubSecret
+
+Conditions:
+  IsProd: !Equals [!Ref RepositoryBranchName, prod]
+
+Resources:
+  ArtifactStoreBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "devops-artifacts-${RepositoryName}-${RepositoryBranchName}"
+      VersioningConfiguration:
+        Status: Enabled
+      Tags:
+        - Key: Environment
+          Value: !Ref RepositoryBranchName
+
+  Webhook:
+    Type: "AWS::CodePipeline::Webhook"
+    Properties:
+      Name: !Sub "webhook-${RepositoryName}-${RepositoryBranchName}"
+      AuthenticationConfiguration:
+        SecretToken: !Ref GitHubSecret
+      Filters:
+        - JsonPath: "$.ref"
+          MatchEquals: refs/heads/{Branch}
+      Authentication: GITHUB_HMAC
+      TargetPipeline: !Ref WebhookPipeline
+      TargetAction: SourceAction
+      TargetPipelineVersion: !GetAtt WebhookPipeline.Version
+      RegisterWithThirdParty: true
+
+  WebhookPipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      ArtifactStore:
+        Location: !Ref ArtifactStoreBucket
+        Type: S3
+      DisableInboundStageTransitions: []
+      Name: !Sub "devops-${RepositoryName}-${RepositoryBranchName}"
+      RoleArn: !GetAtt [PipelineRole, Arn]
+      Stages:
+        # Stage 1: Source from GitHub
+        - Name: Source
+          Actions:
+            - Name: SourceAction
+              ActionTypeId:
+                Category: Source
+                Owner: ThirdParty
+                Version: "1"
+                Provider: GitHub
+              OutputArtifacts:
+                - Name: SourceOutput
+              Configuration:
+                Owner: !Ref RepositoryOwner
+                Repo: !Ref RepositoryName
+                Branch: !Ref RepositoryBranchName
+                OAuthToken: !Ref GitHubSecret
+                PollForSourceChanges: false
+              RunOrder: 1
+
+        # Stage 2: Database Deployment
+        - Name: DB
+          Actions:
+            - Name: PreDB
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Version: "1"
+                Provider: CodeBuild
+              InputArtifacts:
+                - Name: SourceOutput
+              OutputArtifacts:
+                - Name: PreDBBuildOutput
+              Configuration:
+                ProjectName: !Ref PreDBCodeBuildProject
+              RunOrder: 1
+            - Name: DBStack
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CloudFormation
+                Version: "1"
+              InputArtifacts:
+                - Name: SourceOutput
+              Configuration:
+                ActionMode: CREATE_UPDATE
+                Capabilities: CAPABILITY_IAM,CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND
+                RoleArn: !GetAtt [CloudFormationRole, Arn]
+                StackName: !Sub "dynamodb-${RepositoryName}-${RepositoryBranchName}"
+                TemplateConfiguration: !Sub "SourceOutput::.deploy/IaC/db/configs/db-${RepositoryBranchName}.json"
+                TemplatePath: "SourceOutput::.deploy/IaC/db/db.yml"
+              RunOrder: 2
+            - Name: PostDB
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Version: "1"
+                Provider: CodeBuild
+              InputArtifacts:
+                - Name: PreDBBuildOutput
+              OutputArtifacts:
+                - Name: PostDBBuildOutput
+              Configuration:
+                ProjectName: !Ref PostDBCodeBuildProject
+              RunOrder: 3
+
+        # Stage 3: Infrastructure Deployment (Lambdas, S3, etc.)
+        - Name: Infrastructure
+          Actions:
+            - Name: BuildCode
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Version: "1"
+                Provider: CodeBuild
+              InputArtifacts:
+                - Name: SourceOutput
+              OutputArtifacts:
+                - Name: BuildOutput
+              Configuration:
+                ProjectName: !Ref InfraCodePreBuildProject
+              RunOrder: 1
+            - Name: InfraStack
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CloudFormation
+                Version: "1"
+              InputArtifacts:
+                - Name: BuildOutput
+              Configuration:
+                ActionMode: !If [IsProd, CREATE_UPDATE, REPLACE_ON_FAILURE]
+                Capabilities: CAPABILITY_IAM,CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND
+                RoleArn: !GetAtt [CloudFormationRole, Arn]
+                StackName: !Sub "infra-${RepositoryName}-${RepositoryBranchName}"
+                TemplateConfiguration: !Sub "BuildOutput::.deploy/IaC/infra/configs/infra-${RepositoryBranchName}.json"
+                TemplatePath: "BuildOutput::.deploy/IaC/infra/infra.yml"
+              RunOrder: 2
+            - Name: PostBuildCode
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Version: "1"
+                Provider: CodeBuild
+              InputArtifacts:
+                - Name: SourceOutput
+              OutputArtifacts:
+                - Name: PostBuildOutput
+              Configuration:
+                ProjectName: !Ref InfraCodePostBuildProject
+              RunOrder: 3
+
+  ######################################################
+  # CodeBuild Projects
+  ######################################################
+
+  # Pre-DB Deployment Build
+  PreDBCodeBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      ServiceRole: !Ref CodeBuildRole
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_MEDIUM
+        Image: aws/codebuild/standard:7.0
+        PrivilegedMode: true
+        EnvironmentVariables:
+          - Name: REPOSITORY_NAME
+            Value: !Ref RepositoryName
+          - Name: REPOSITORY_BRANCH_NAME
+            Value: !Ref RepositoryBranchName
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: ".deploy/IaC/db/.build/pre-db.yml"
+      TimeoutInMinutes: 10
+      Cache:
+        Type: S3
+        Location: !Sub "devops-artifacts-${RepositoryName}-${RepositoryBranchName}/codebuild"
+
+  # Post-DB Deployment Build
+  PostDBCodeBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      ServiceRole: !Ref CodeBuildRole
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_MEDIUM
+        Image: aws/codebuild/standard:7.0
+        PrivilegedMode: true
+        EnvironmentVariables:
+          - Name: REPOSITORY_NAME
+            Value: !Ref RepositoryName
+          - Name: REPOSITORY_BRANCH_NAME
+            Value: !Ref RepositoryBranchName
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: ".deploy/IaC/db/.build/post-db.yml"
+      TimeoutInMinutes: 10
+      Cache:
+        Type: S3
+        Location: !Sub "devops-artifacts-${RepositoryName}-${RepositoryBranchName}/codebuild"
+
+  # Pre-Infrastructure Deployment Build
+  InfraCodePreBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      ServiceRole: !Ref CodeBuildRole
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_MEDIUM
+        Image: aws/codebuild/standard:7.0
+        PrivilegedMode: true
+        EnvironmentVariables:
+          - Name: REPOSITORY_NAME
+            Value: !Ref RepositoryName
+          - Name: REPOSITORY_BRANCH_NAME
+            Value: !Ref RepositoryBranchName
+          - Name: TARGET_ENV
+            Value: !Ref RepositoryBranchName
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: ".deploy/IaC/infra/.build/pre-infra.yml"
+      TimeoutInMinutes: 10
+      Cache:
+        Type: S3
+        Location: !Sub "devops-artifacts-${RepositoryName}-${RepositoryBranchName}/codebuild"
+
+  # Post-Infrastructure Deployment Build
+  InfraCodePostBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      ServiceRole: !Ref CodeBuildRole
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_MEDIUM
+        Image: aws/codebuild/standard:7.0
+        PrivilegedMode: true
+        EnvironmentVariables:
+          - Name: REPOSITORY_NAME
+            Value: !Ref RepositoryName
+          - Name: REPOSITORY_BRANCH_NAME
+            Value: !Ref RepositoryBranchName
+          - Name: TARGET_ENV
+            Value: !Ref RepositoryBranchName
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: ".deploy/IaC/infra/.build/post-infra.yml"
+      TimeoutInMinutes: 10
+      Cache:
+        Type: S3
+        Location: !Sub "devops-artifacts-${RepositoryName}-${RepositoryBranchName}/codebuild"
+
+  ######################################################
+  # IAM Roles
+  ######################################################
+
+  PipelineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "codepipeline-${RepositoryName}-${RepositoryBranchName}"
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: ["sts:AssumeRole"]
+            Effect: Allow
+            Principal:
+              Service: [codepipeline.amazonaws.com]
+        Version: "2012-10-17"
+      Path: /
+      Policies:
+        - PolicyName: CodePipelineAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Action:
+                  - "cloudwatch:*"
+                  - "events:*"
+                  - "s3:*"
+                  - "logs:*"
+                  - "cloudformation:*"
+                  - "iam:PassRole"
+                  - "sns:Publish"
+                  - "codebuild:*"
+                Effect: Allow
+                Resource: "*"
+
+  CloudFormationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "cloudformation-${RepositoryName}-${RepositoryBranchName}"
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: ["sts:AssumeRole"]
+            Effect: Allow
+            Principal:
+              Service: [cloudformation.amazonaws.com]
+        Version: "2012-10-17"
+      Path: /
+      Policies:
+        - PolicyName: CloudFormationRole
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Action:
+                  - "cloudwatch:*"
+                  - "events:*"
+                  - "s3:*"
+                  - "lambda:*"
+                  - "dynamodb:*"
+                  - "apigateway:*"
+                  - "sns:*"
+                  - "logs:*"
+                  - "sqs:*"
+                  - "cloudformation:*"
+                  - "iam:*"
+                  - "states:*"
+                Effect: Allow
+                Resource: "*"
+
+  CodeBuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "codebuild-${RepositoryName}-${RepositoryBranchName}"
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: ["sts:AssumeRole"]
+            Effect: Allow
+            Principal:
+              Service: [codebuild.amazonaws.com]
+        Version: "2012-10-17"
+      Path: /
+      Policies:
+        - PolicyName: General
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Action:
+                  - "s3:*"
+                  - "logs:*"
+                  - "lambda:*"
+                  - "sqs:*"
+                  - "dynamodb:*"
+                  - "states:*"
+                  - "iam:PassRole"
+                  - "sns:Publish"
+                  - "cloudformation:*"
+                Effect: Allow
+                Resource: "*"
+
+Outputs:
+  WebHookURL:
+    Description: The URL to use to register webhook on GitHub side.
+    Value: !GetAtt Webhook.Url
+
+  PipelineName:
+    Description: Name of the CodePipeline
+    Value: !Ref WebhookPipeline
+
+  ArtifactBucket:
+    Description: S3 bucket for pipeline artifacts
+    Value: !Ref ArtifactStoreBucket

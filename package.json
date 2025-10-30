@@ -1,0 +1,50 @@
+{
+  "name": "@blockchain-web-services/bws-ai-coding-template",
+  "version": "1.0.0",
+  "description": "Git worktree management and parallel testing toolkit for Node.js projects",
+  "type": "module",
+  "bin": {
+    "bws-ai-coding-template": "./bin/init.js",
+    "worktree-init": "./bin/init.js"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "worktree",
+    "git",
+    "parallel-testing",
+    "localstack",
+    "aws",
+    "cloudformation",
+    "cicd",
+    "devops",
+    "template",
+    "cli"
+  ],
+  "author": "Blockchain Web Services",
+  "license": "MIT",
+  "files": [
+    "bin/",
+    "lib/",
+    "templates/"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/blockchain-web-services/bws-ai-coding-template.git"
+  },
+  "bugs": {
+    "url": "https://github.com/blockchain-web-services/bws-ai-coding-template/issues"
+  },
+  "homepage": "https://github.com/blockchain-web-services/bws-ai-coding-template#readme",
+  "dependencies": {
+    "inquirer": "^9.2.0",
+    "chalk": "^5.3.0",
+    "fs-extra": "^11.2.0",
+    "glob": "^10.3.0",
+    "commander": "^11.1.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

@@ -1,0 +1,32 @@
+version: 0.2
+
+# Post-Infrastructure Deployment Build
+# Runs after deploying infrastructure CloudFormation stack
+# Use this for smoke tests, cache warming, or post-deployment setup
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: 20
+    commands:
+      - echo "Installing test dependencies..."
+      - cd test
+      - npm ci
+
+  build:
+    commands:
+      - echo "Running post-deployment validation..."
+      - echo "Branch - $CODEBUILD_WEBHOOK_HEAD_REF"
+      - echo "Environment - $TARGET_ENV"
+      # Example: Run smoke tests
+      # - npm run test:smoke
+
+  post_build:
+    commands:
+      - echo "Post-deployment tasks completed"
+      # Example: Warm up caches, send notifications, etc.
+
+artifacts:
+  files:
+    - 'test-results/**/*'
+  name: TestResults
