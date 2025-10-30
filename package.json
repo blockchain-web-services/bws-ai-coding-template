@@ -4,8 +4,8 @@
   "description": "Git worktree management and parallel testing toolkit for Node.js projects",
   "type": "module",
   "bin": {
-    "bws-ai-coding-template": "./bin/init.js",
-    "worktree-init": "./bin/init.js"
+    "bws-ai-coding-template": "bin/init.js",
+    "worktree-init": "bin/init.js"
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -31,7 +31,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/blockchain-web-services/bws-ai-coding-template.git"
+    "url": "git+https://github.com/blockchain-web-services/bws-ai-coding-template.git"
   },
   "bugs": {
     "url": "https://github.com/blockchain-web-services/bws-ai-coding-template/issues"
