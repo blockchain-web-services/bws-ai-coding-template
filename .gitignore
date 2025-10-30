@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Test coverage
+coverage/
+
+# Build outputs (if any)
+dist/
+build/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Environment variables (if used during development)
+.env
+.env.local

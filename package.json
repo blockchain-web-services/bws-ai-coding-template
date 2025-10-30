@@ -37,6 +37,9 @@
     "url": "https://github.com/blockchain-web-services/bws-ai-coding-template/issues"
   },
   "homepage": "https://github.com/blockchain-web-services/bws-ai-coding-template#readme",
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
   "dependencies": {
     "inquirer": "^9.2.0",
     "chalk": "^5.3.0",
