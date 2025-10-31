@@ -8,7 +8,8 @@
     "worktree-init": "bin/init.js"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "publish:dual": "./publish-dual.sh"
   },
   "keywords": [
     "worktree",
@@ -38,7 +39,7 @@
   },
   "homepage": "https://github.com/blockchain-web-services/bws-ai-coding-template#readme",
   "publishConfig": {
-    "registry": "https://npm.pkg.github.com"
+    "access": "public"
   },
   "dependencies": {
     "inquirer": "^9.2.0",
