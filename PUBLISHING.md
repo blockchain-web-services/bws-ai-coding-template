@@ -1,14 +1,26 @@
-# Publishing to GitHub Packages
+# Publishing to npm and GitHub Packages
 
-This guide explains how to publish this package to GitHub Packages under the @blockchain-web-services organization.
+This guide explains how to publish this package to BOTH npm (public registry) and GitHub Packages.
 
 ## Prerequisites
 
 1. **GitHub Repository**: Repository must exist at `https://github.com/blockchain-web-services/bws-ai-coding-template`
 2. **Organization Access**: You must have write access to the @blockchain-web-services organization
-3. **GitHub Personal Access Token (PAT)**: With `write:packages` permission
+3. **npm Account**: With publish access to @blockchain-web-services scope
+4. **Tokens Required**:
+   - **NPM_TOKEN**: npm access token with publish permission
+   - **GITHUB_TOKEN**: GitHub PAT with `write:packages` permission
 
-## Step 1: Create GitHub Personal Access Token
+## Step 1: Create npm Access Token
+
+1. Go to https://www.npmjs.com/settings/YOUR_USERNAME/tokens
+2. Click "Generate New Token" → "Classic Token"
+3. Name it: `bws-ai-coding-template publishing`
+4. Select type: **Automation** (for CI/CD) or **Publish** (for manual publishing)
+5. Click "Generate Token"
+6. **Copy the token** (starts with `npm_...`)
+
+## Step 2: Create GitHub Personal Access Token
 
 1. Go to GitHub Settings → Developer settings → Personal access tokens → Tokens (classic)
 2. Click "Generate new token (classic)"
@@ -19,32 +31,21 @@ This guide explains how to publish this package to GitHub Packages under the @bl
    - ✅ `delete:packages` - Delete packages from GitHub Package Registry (optional)
    - ✅ `repo` - Required for private repositories (optional)
 5. Click "Generate token"
-6. **Copy the token** (you won't see it again!)
+6. **Copy the token** (starts with `ghp_...`)
 
-## Step 2: Authenticate with GitHub Packages
+## Step 3: Configure Tokens in .env
 
-### Option A: Using .npmrc (Recommended)
-
-Create a `.npmrc` file in your home directory:
+Create or update `.env` file in the project root:
 
 ```bash
-echo "//npm.pkg.github.com/:_authToken=YOUR_GITHUB_TOKEN" >> ~/.npmrc
+# .env file
+NPM_TOKEN=npm_...your_npm_token...
+GITHUB_TOKEN=ghp_...your_github_token...
 ```
 
-Replace `YOUR_GITHUB_TOKEN` with your actual token.
+**Important**: This file is gitignored and won't be committed.
 
-### Option B: Using npm login
-
-```bash
-npm login --registry=https://npm.pkg.github.com
-```
-
-When prompted:
-- Username: Your GitHub username
-- Password: Your GitHub Personal Access Token
-- Email: Your GitHub email
-
-## Step 3: Verify Package Configuration
+## Step 4: Verify Package Configuration
 
 Check that package.json is correctly configured:
 
@@ -55,9 +56,11 @@ cat package.json | grep -A 2 publishConfig
 Should show:
 ```json
 "publishConfig": {
-  "registry": "https://npm.pkg.github.com"
+  "access": "public"
 }
 ```
+
+This allows publishing to both npm (public) and GitHub Packages.
 
 ## Step 4: Ensure Repository Exists on GitHub
 
@@ -110,13 +113,35 @@ node bin/init.js --help
 cat package.json | grep version
 ```
 
-## Step 6: Publish the Package
+## Step 6: Publish to Both Registries
 
-### First Time Publishing
+### Using the Dual Publishing Script (Recommended)
+
+The `publish-dual.sh` script automatically publishes to both npm and GitHub Packages:
 
 ```bash
-# Make sure you're in the package directory
-cd /mnt/x/Git/blockchain-web-services/utils/bws-ai-coding-template
+# Run dual publishing script
+npm run publish:dual
+```
+
+This will:
+1. Configure npm authentication for both registries
+2. Publish to npmjs.org
+3. Publish to GitHub Packages
+4. Display package URLs
+
+### Manual Publishing
+
+If you need to publish to only one registry:
+
+**Publish to npm only:**
+```bash
+npm publish --registry https://registry.npmjs.org
+```
+
+**Publish to GitHub Packages only:**
+```bash
+npm publish --registry https://npm.pkg.github.com
 
 # Publish to GitHub Packages
 npm publish
@@ -132,40 +157,36 @@ npm version minor  # 1.0.0 -> 1.1.0
 # or
 npm version major  # 1.0.0 -> 2.0.0
 
-# 2. Commit version change
-git add package.json
-git commit -m "Bump version to $(node -p "require('./package.json').version")"
-
-# 3. Create git tag
-git tag v$(node -p "require('./package.json').version")
-
-# 4. Push changes and tag
-git push origin main
+# 2. Push changes and tag (npm version auto-commits)
+git push origin staging
 git push origin --tags
 
-# 5. Publish to GitHub Packages
-npm publish
+# 3. Publish to both registries
+npm run publish:dual
 ```
 
 ## Step 7: Verify Publication
 
-After publishing:
+After publishing, verify on both registries:
 
 ```bash
-# Check package page
-open https://github.com/blockchain-web-services/bws-ai-coding-template/packages
+# Check npm registry
+open https://www.npmjs.com/package/@blockchain-web-services/bws-ai-coding-template
 
-# Try installing from GitHub Packages
-npm install @blockchain-web-services/bws-ai-coding-template
+# Check GitHub Packages
+open https://github.com/blockchain-web-services/bws-ai-coding-template/packages
 ```
 
 ## Using the Published Package
 
-### For Users
+### From npm (Public - No Authentication Required)
 
-Users need to configure npm to use GitHub Packages for @blockchain-web-services scope:
+```bash
+# Install from npm (recommended for most users)
+npm install @blockchain-web-services/bws-ai-coding-template
+```
 
-#### Option 1: Project .npmrc
+### From GitHub Packages (Requires Authentication)
 
 Create `.npmrc` in project root:
 
@@ -174,7 +195,7 @@ Create `.npmrc` in project root:
 //npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
 ```
 
-Then:
+Then install:
 
 ```bash
 # Set token in environment
