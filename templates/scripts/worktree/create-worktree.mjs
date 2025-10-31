@@ -379,7 +379,7 @@ npm run worktree:remove ${branchName}
     console.log('  2. Start developing your feature');
 
     if (existsSync(worktreeTestDir)) {
-        console.log(`  3. cd test && npm install     # Install test dependencies (when ready)');
+        console.log('  3. cd test && npm install     # Install test dependencies (when ready)');
         console.log('  4. npm run docker:up          # Start LocalStack container');
         console.log('  5. npm run setup              # Create AWS resources');
         console.log('  6. npm test                   # Run tests');
