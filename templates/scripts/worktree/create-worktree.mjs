@@ -253,19 +253,48 @@ Press Enter to skip, or type 'y' to add context: `);
         console.log('\n');
 
         // Feature description
-        featureDesc = await promptMultiline('📋 Feature/Fix Description (what and why):');
+        console.log('📋 Feature/Fix Description');
+        console.log('━'.repeat(50));
+        console.log('Describe WHAT you\'re building and WHY it\'s needed.');
+        console.log('Focus on the problem and solution, not specific tasks.');
+        console.log('Claude will use this to understand the overall goal.\n');
+        console.log('Example: "Add user authentication to protect admin routes');
+        console.log('         because currently anyone can access admin features."\n');
+        featureDesc = await promptMultiline('What and why:');
 
         // Task list
-        console.log('\n✅ Task List (one per line):');
-        taskList = await promptMultiline('');
+        console.log('\n✅ Task List');
+        console.log('━'.repeat(50));
+        console.log('List specific tasks/steps needed (one per line).');
+        console.log('Be concrete and actionable - these become checkboxes.');
+        console.log('Claude will use this to track progress and know what\'s left.\n');
+        console.log('Example tasks:');
+        console.log('  Create login form component');
+        console.log('  Add JWT token validation');
+        console.log('  Protect admin routes with middleware\n');
+        taskList = await promptMultiline('Tasks (one per line):');
 
         // Technical approach
-        console.log('\n🔧 Technical Approach/Design Decisions:');
-        technicalApproach = await promptMultiline('');
+        console.log('\n🔧 Technical Approach/Design Decisions');
+        console.log('━'.repeat(50));
+        console.log('Explain HOW you\'ll implement this technically.');
+        console.log('Include frameworks, libraries, patterns, or architecture.');
+        console.log('Claude will use this to stay consistent with your approach.\n');
+        console.log('Example: "Using JWT tokens stored in httpOnly cookies,');
+        console.log('         express-jwt middleware for validation,');
+        console.log('         and React Context for auth state."\n');
+        technicalApproach = await promptMultiline('How you\'ll build it:');
 
         // Testing strategy
-        console.log('\n🧪 Testing Strategy/Acceptance Criteria:');
-        testingStrategy = await promptMultiline('');
+        console.log('\n🧪 Testing Strategy/Acceptance Criteria');
+        console.log('━'.repeat(50));
+        console.log('Describe how to verify it works correctly.');
+        console.log('Include test cases, manual steps, or success criteria.');
+        console.log('Claude will use this to validate the implementation.\n');
+        console.log('Example: "User can login with valid credentials,');
+        console.log('         invalid login shows error message,');
+        console.log('         protected routes redirect to login when not authenticated."\n');
+        testingStrategy = await promptMultiline('How to verify it works:');
     }
 
     // Build CLAUDE_INSTRUCTIONS.md content
