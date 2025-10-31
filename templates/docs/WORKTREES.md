@@ -38,7 +38,8 @@ This creates a new worktree in `.trees/feature-name/` with:
 - Unique Playwright port (8080-8109 range)
 - Unique Docker container names
 - Isolated DynamoDB tables and S3 buckets
-- `WORKTREE_CONTEXT.md` file for feature documentation
+- `CLAUDE_INSTRUCTIONS.md` file for feature documentation and git workflow
+- `CLAUDE.md` file with reference to instructions
 
 ### Switch to the Worktree
 
@@ -86,7 +87,8 @@ npm run worktree:create <branch-name>
 Creates a new git worktree with:
 - Automatic port assignment based on branch name hash
 - Environment configuration in `test/.env.worktree`
-- Context file at `WORKTREE_CONTEXT.md`
+- Instructions file at `CLAUDE_INSTRUCTIONS.md` (with feature context and git workflow)
+- Reference file at `CLAUDE.md`
 - Isolated Docker setup
 
 ### List All Worktrees
@@ -227,11 +229,13 @@ npm run worktree:create foo
 
 ### 2. Document Your Work
 
-When creating a worktree, fill out the `WORKTREE_CONTEXT.md` file:
+When creating a worktree, the script prompts you to fill out the `CLAUDE_INSTRUCTIONS.md` file with:
 - What feature/fix are you working on?
 - What tasks need to be completed?
 - What's your technical approach?
 - How will you test it?
+
+The file also includes git workflow instructions specific to your root branch.
 
 ### 3. Clean Up Regularly
 

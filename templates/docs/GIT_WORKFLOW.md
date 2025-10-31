@@ -442,10 +442,10 @@ The installer automatically adds these patterns to `.gitignore`:
 .env.worktree
 .worktree-info.json
 docker-compose.worktree.yml
-WORKTREE_CONTEXT.md
+CLAUDE_INSTRUCTIONS.md
 test/.env.worktree
 test/.worktree-info.json
-.trees/*/WORKTREE_CONTEXT.md
+.trees/*/CLAUDE_INSTRUCTIONS.md
 ```
 
 These files are specific to each worktree and should not be committed.

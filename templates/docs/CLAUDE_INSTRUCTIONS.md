@@ -33,9 +33,9 @@ This project uses **git worktrees** for parallel feature development with isolat
    pwd
    ```
 
-2. **Read worktree context** (if exists):
+2. **Read Claude instructions** (if exists):
    ```bash
-   cat WORKTREE_CONTEXT.md
+   cat CLAUDE_INSTRUCTIONS.md
    ```
 
 3. **Verify environment**:
@@ -44,17 +44,18 @@ This project uses **git worktrees** for parallel feature development with isolat
    echo $LOCALSTACK_PORT
    ```
 
-## Worktree Context Files
+## Worktree Instructions Files
 
-### WORKTREE_CONTEXT.md
+### CLAUDE_INSTRUCTIONS.md
 
-Each worktree can have a `WORKTREE_CONTEXT.md` file at its root with:
+Each worktree has a `CLAUDE_INSTRUCTIONS.md` file at its root with:
 
 ```markdown
-# Worktree Context: feature-name
+# Claude Code Instructions - Worktree: feature-name
 
 **Created**: 2024-01-15T10:30:00Z
 **Branch**: feature-name
+**Parent Branch**: main
 
 ## Feature/Fix Description
 
@@ -73,15 +74,53 @@ Each worktree can have a `WORKTREE_CONTEXT.md` file at its root with:
 ## Testing Strategy
 
 [How to verify it works]
+
+## Git Workflow for This Worktree
+
+### 1. Rebase from root branch
+```bash
+git fetch origin
+git rebase origin/main
 ```
 
-### Reading Context
+### 2. Commit your changes
+```bash
+git add .
+git commit -m "feat: description"
+```
+
+### 3. Run tests before merging
+```bash
+cd test
+npm test
+```
+
+### 4. Merge to root (from root directory)
+```bash
+cd ../..  # Return to root
+git checkout main
+git merge --no-ff feature-name
+```
+
+### 5. Push to origin
+```bash
+git push origin main
+```
+
+### 6. Remove worktree when done
+```bash
+npm run worktree:remove feature-name
+```
+```
+
+### Reading Instructions
 
 **Always read this file first** when working in a worktree to understand:
 - What feature is being developed
 - What still needs to be done
 - Technical decisions already made
 - Testing requirements
+- Git workflow specific to this worktree
 
 ### Updating Context
 
@@ -89,7 +128,7 @@ When making significant progress, update the task list:
 
 ```bash
 # Mark completed tasks
-sed -i 's/- \[ \] Implemented auth endpoint/- \[x\] Implemented auth endpoint/' WORKTREE_CONTEXT.md
+sed -i 's/- \[ \] Implemented auth endpoint/- \[x\] Implemented auth endpoint/' CLAUDE_INSTRUCTIONS.md
 ```
 
 ## Git Workflow Rules
@@ -156,7 +195,7 @@ These files are gitignored and should never be committed:
 - `.env.worktree`
 - `.worktree-info.json`
 - `docker-compose.worktree.yml`
-- `WORKTREE_CONTEXT.md`
+- `CLAUDE_INSTRUCTIONS.md`
 - `test/.env.worktree`
 
 ## Testing Guidelines
@@ -342,7 +381,8 @@ When making changes, be aware of:
 project/
 ├── .trees/                      # Worktree directories (gitignored)
 │   └── feature-name/
-│       └── WORKTREE_CONTEXT.md  # Feature documentation
+│       ├── CLAUDE.md            # Reference to CLAUDE_INSTRUCTIONS.md
+│       └── CLAUDE_INSTRUCTIONS.md  # Feature documentation + git workflow
 ├── scripts/worktree/            # Worktree management scripts
 │   ├── create-worktree.mjs
 │   ├── list-worktrees.mjs
@@ -371,6 +411,7 @@ project/
 - `.git/worktrees/` - Git internal worktree data
 - `.trees/` - Worktree directories (managed by scripts)
 - `.worktree-info.json` - Generated worktree metadata
+- `CLAUDE_INSTRUCTIONS.md` - Auto-generated instructions (edit manually if needed, but won't be committed)
 
 ### Files to Update Carefully
 
@@ -389,8 +430,8 @@ npm run worktree:create feature-name
 # 2. Move to worktree
 cd .trees/feature-name
 
-# 3. Check context file
-cat WORKTREE_CONTEXT.md
+# 3. Check instructions file
+cat CLAUDE_INSTRUCTIONS.md
 
 # 4. Implement feature
 # ... make changes ...
@@ -513,10 +554,10 @@ git status
 # Will this operation lose work?
 ```
 
-### ✓ Check Worktree Context
+### ✓ Check Worktree Instructions
 
 ```bash
-cat WORKTREE_CONTEXT.md 2>/dev/null
+cat CLAUDE_INSTRUCTIONS.md 2>/dev/null
 # Does this align with what you're doing?
 ```
 
