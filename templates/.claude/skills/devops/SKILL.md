@@ -1,4 +1,7 @@
-# DevOps
+---
+name: devops
+description: Deploy and monitor AWS CloudFormation stacks, GitHub Actions workflows, and CI/CD pipelines. Use when deploying infrastructure, checking deployment logs, investigating deployment failures, pushing code changes, merging worktrees, or managing AWS resources. Discovers project configuration (templates, workflows, stacks) before operations.
+---
 
 Specialized deployment operations with intelligent project discovery and log monitoring.
 

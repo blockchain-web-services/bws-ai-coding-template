@@ -8,7 +8,7 @@ Skills are specialized knowledge files that help Claude Code understand your pro
 
 ## Available Skills
 
-### `skills/devops.md`
+### `skills/devops/`
 
 Deployment operations skill providing:
 - **Project Discovery**: Automatically find GitHub Actions workflows and CloudFormation templates
@@ -44,17 +44,27 @@ Skills use template variables that are replaced during installation:
 
 You can add your own skills to the `.claude/skills/` directory:
 
-1. Create a new `.md` file (e.g., `testing.md`, `monitoring.md`)
-2. Write Markdown content with guidance, commands, examples
-3. Use code blocks for commands and scripts
-4. Reference actual project files and paths
-5. Include safety rules and best practices
+1. Create a new directory (e.g., `testing/`, `monitoring/`)
+2. Create a `SKILL.md` file inside with YAML frontmatter
+3. Write Markdown content with guidance, commands, examples
+4. Use code blocks for commands and scripts
+5. Reference actual project files and paths
+6. Include safety rules and best practices
 
 **Example skill structure:**
-```markdown
-# Skill Name
+```
+.claude/skills/my-skill/
+└── SKILL.md
+```
 
-Brief description of what this skill provides.
+**SKILL.md format:**
+```markdown
+---
+name: my-skill
+description: What the skill does and when Claude should use it. Include both functionality and usage triggers (specific terms users would mention).
+---
+
+# Detailed Content
 
 ## When to Use This Skill
 
@@ -77,6 +87,11 @@ command --flag value
 - Link to relevant docs
 ```
 
+**Requirements:**
+- `name`: Lowercase letters, numbers, hyphens only (max 64 characters)
+- `description`: Clear, specific description (max 1024 characters) including WHAT the skill does and WHEN to use it
+- YAML frontmatter must have opening/closing `---` delimiters
+
 ## Skills vs Commands
 
 - **Skills** (`.claude/skills/*.md`): Background knowledge that Claude Code uses automatically
@@ -88,9 +103,11 @@ Skills provide ongoing context, while commands are task-specific prompts.
 
 ```
 .claude/
-├── skills/              # Skill files (auto-loaded)
-│   ├── devops.md       # Deployment operations
-│   └── custom.md       # Your custom skills
+├── skills/              # Skill directories (auto-loaded)
+│   ├── devops/         # Deployment operations skill
+│   │   └── SKILL.md    # Main skill file with YAML frontmatter
+│   └── custom/         # Your custom skill
+│       └── SKILL.md    # Custom skill file
 ├── commands/            # Slash commands (manually invoked)
 │   └── deploy.md       # /deploy command
 └── README.md           # This file
