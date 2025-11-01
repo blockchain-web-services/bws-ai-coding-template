@@ -376,7 +376,21 @@ npm run worktree:remove ${branchName}
     writeFileSync(claudeMdPath, claudeMdContent);
     console.log(`✅ Created CLAUDE.md`);
 
-    // Step 5: Copy helper files (if they exist)
+    // Step 5: Copy Claude Code skills to worktree
+    console.log('\n🎯 Setting up Claude Code skills...');
+    const claudeSource = join(rootDir, '.claude');
+    const claudeDest = join(worktreePath, '.claude');
+
+    if (existsSync(claudeSource)) {
+        try {
+            cpSync(claudeSource, claudeDest, { recursive: true });
+            console.log('  ✅ Copied Claude Code skills');
+        } catch (error) {
+            console.warn('  ⚠️  Could not copy Claude Code skills:', error.message);
+        }
+    }
+
+    // Step 6: Copy helper files (if they exist)
     console.log('\n📁 Setting up worktree helpers...');
     const helpersSource = join(rootDir, 'test', 'helpers');
     const helpersTarget = join(worktreeTestDir, 'helpers');
@@ -391,7 +405,7 @@ npm run worktree:remove ${branchName}
         }
     }
 
-    // Step 6: Display configuration summary
+    // Step 7: Display configuration summary
     console.log('\n🎉 Worktree created and configured successfully!\n');
     console.log('📊 Configuration Summary:');
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
