@@ -1,6 +1,6 @@
 {
   "name": "@blockchain-web-services/bws-ai-coding-template",
-  "version": "1.0.9",
+  "version": "1.1.0",
   "description": "Git worktree management and parallel testing toolkit for Node.js projects",
   "type": "module",
   "bin": {
