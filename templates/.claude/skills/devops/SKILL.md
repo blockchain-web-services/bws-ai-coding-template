@@ -1,6 +1,6 @@
 ---
 name: devops
-description: Deploy and monitor AWS CloudFormation stacks, GitHub Actions workflows, and CI/CD pipelines. Use when deploying infrastructure, checking deployment logs, investigating deployment failures, pushing code changes, merging worktrees, or managing AWS resources. Discovers project configuration (templates, workflows, stacks) before operations.
+description: Execute git commands (fetch, rebase, commit, merge, push) following worktree workflow, then monitor resulting deployments. After git push, automatically check GitHub Actions workflows and CloudFormation deployment logs. Deploy and troubleshoot AWS infrastructure stacks, investigate failures, and manage CI/CD pipelines. Use when performing git operations, pushing code, merging worktrees, deploying infrastructure, or checking deployment status.
 ---
 
 Specialized deployment operations with intelligent project discovery and log monitoring.
@@ -81,21 +81,20 @@ ls -la devops.yml 2>/dev/null
 find . -name "devops.yml" -o -name ".gitlab-ci.yml" -o -name "azure-pipelines.yml"
 ```
 
-## Phase 2: Git Deployment Workflow
+## Phase 2: Git Workflow for Worktrees
 
-### CRITICAL RULE: Rebase Before Merging to Deployment Branches
+### CRITICAL RULE: Always Rebase Before Committing
 
-When preparing to deploy/merge changes:
+**Complete workflow when asked to commit changes:**
 
-**Step 1: Fetch latest changes**
+**Step 1: Fetch latest changes from origin**
 ```bash
-cd /path/to/root/project
+cd .trees/{{BRANCH_NAME}}
 git fetch origin
 ```
 
-**Step 2: Switch to worktree and rebase**
+**Step 2: Rebase onto parent branch**
 ```bash
-cd .trees/{{BRANCH_NAME}}
 git rebase origin/{{PARENT_BRANCH}}
 ```
 
@@ -103,32 +102,92 @@ git rebase origin/{{PARENT_BRANCH}}
 ```bash
 # If conflicts occur:
 git status  # See conflicted files
-# Edit files to resolve conflicts
+
+# Edit conflicting files to resolve
+# Look for markers: <<<<<<< HEAD, =======, >>>>>>> branch-name
+
+# After resolving:
 git add .
 git rebase --continue
 ```
 
-**Step 4: Return to root and merge**
+**Step 4: Run tests (REQUIRED after rebase)**
 ```bash
-cd ../..  # Back to root
-git checkout {{PARENT_BRANCH}}
-git merge --no-ff {{BRANCH_NAME}} -m "Merge {{BRANCH_NAME}} into {{PARENT_BRANCH}}"
+cd test
+npm test
+
+# Ensure all tests pass before committing
+# If tests fail, fix issues and re-run
 ```
 
-**Step 5: Push to origin (triggers CI/CD)**
+**Step 5: Commit your changes**
+```bash
+cd ..  # Return to worktree root
+git add .
+git commit -m "feat: description of changes"
+```
+
+**Step 6: Return to root directory**
+```bash
+cd ../..  # Back to project root
+```
+
+**Step 7: Merge worktree with --no-ff**
+```bash
+# Use the merge script (automatically uses --no-ff)
+npm run worktree:merge {{BRANCH_NAME}}
+
+# Or manually:
+git checkout {{PARENT_BRANCH}}
+git merge --no-ff {{BRANCH_NAME}}
+```
+
+**Step 8: Push to origin (triggers deployments)**
 ```bash
 git push origin {{PARENT_BRANCH}}
 
-# This push will trigger GitHub Actions workflows
-# Monitor with: gh run watch
+# IMPORTANT: This push triggers CI/CD pipelines
+# Proceed to Phase 4 to monitor deployment
 ```
 
-### Branch Protection Rules
+**Step 9: Monitor deployment logs (see Phase 4)**
+```bash
+# Watch GitHub Actions workflow
+gh run watch --repo {{GITHUB_USERNAME}}/{{REPOSITORY_NAME}}
 
-- **NEVER** use `git push --force` on main/staging/production
-- **ALWAYS** use `--no-ff` merge to preserve history
-- **ALWAYS** fetch and rebase before merge
+# Check deployment logs
+gh run view <run-id> --log
+```
+
+**Step 10: Clean up worktree when complete**
+```bash
+npm run worktree:remove {{BRANCH_NAME}}
+```
+
+### Git Workflow Best Practices
+
+- **NEVER** use `git push --force` on main/staging/production branches
+- **ALWAYS** use `--no-ff` merge to preserve feature branch history
+- **ALWAYS** fetch and rebase before committing
+- **ALWAYS** run tests after rebase and before merge
+- **ALWAYS** monitor deployment logs after pushing
 - Tag releases: `git tag -a v1.2.3 -m "Release 1.2.3"`
+
+### Commit Message Format
+
+Follow conventional commits:
+```bash
+# Feature
+git commit -m "feat: add user registration endpoint"
+
+# Bug fix
+git commit -m "fix: prevent duplicate user emails"
+
+# Refactor
+git commit -m "refactor: extract validation logic to separate module"
+
+# Other types: test, docs, chore, perf, style
+```
 
 ## Phase 3: CloudFormation Deployment Workflow
 
