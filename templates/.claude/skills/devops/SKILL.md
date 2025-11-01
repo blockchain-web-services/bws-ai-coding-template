@@ -1,603 +1,356 @@
 ---
 name: devops
-description: Execute git commands (fetch, rebase, commit, merge, push) following worktree workflow, then monitor resulting deployments. After git push, automatically check GitHub Actions workflows and CloudFormation deployment logs. Deploy and troubleshoot AWS infrastructure stacks, investigate failures, and manage CI/CD pipelines. Use when performing git operations, pushing code, merging worktrees, deploying infrastructure, or checking deployment status.
+description: Executes git commands (fetch, rebase, commit, merge, push) following worktree workflow, then monitors resulting deployments. After git push, automatically checks GitHub Actions workflows and CloudFormation deployment logs. Deploys and troubleshoots AWS infrastructure stacks. Use when performing git operations, pushing code, merging worktrees, deploying infrastructure, or checking deployment status.
 ---
 
-Specialized deployment operations with intelligent project discovery and log monitoring.
+# DevOps
 
-## Phase 1: Project Discovery
+Deployment operations with git workflow execution and automated deployment monitoring.
 
-Before any deployment operation, discover what resources exist in the project.
+## Table of Contents
 
-### Discover GitHub Actions Workflows
+- [Project Discovery](#project-discovery)
+- [Git Workflow](#git-workflow-for-worktrees)
+- [Deployment Monitoring](#deployment-monitoring)
+- [CloudFormation Reference](reference/cloudformation.md)
+- [GitHub Actions Reference](reference/github-actions.md)
+- [CodePipeline Reference](reference/codepipeline.md)
+- [Common Scenarios](reference/scenarios.md)
+- [Troubleshooting](troubleshooting.md)
 
-**Find all workflow files:**
+## Project Discovery
+
+Before deployment operations, discover project resources:
+
+**Find GitHub Actions workflows:**
 ```bash
-find .github/workflows -name "*.yml" -o -name "*.yaml" 2>/dev/null
-```
-
-**Inspect workflow triggers and jobs:**
-```bash
-# List workflows in repository
+find .github/workflows -name "*.yml" 2>/dev/null
 gh workflow list --repo {{GITHUB_USERNAME}}/{{REPOSITORY_NAME}}
-
-# View workflow details
-gh workflow view <workflow-name> --repo {{GITHUB_USERNAME}}/{{REPOSITORY_NAME}}
 ```
 
-**Example Output Analysis:**
-- Workflow: `ci.yml` - Runs on: push to main
-- Workflow: `deploy-staging.yml` - Runs on: push to staging
-- Workflow: `deploy-prod.yml` - Runs on: manual dispatch
-
-### Discover CloudFormation Templates
-
-**Find all CloudFormation templates:**
+**Find CloudFormation templates:**
 ```bash
-find .deploy -name "*.yml" -o -name "*.yaml" 2>/dev/null
+find .deploy -name "*.yml" 2>/dev/null
 ```
 
-**Expected structure:**
-- `.deploy/IaC/db/db.yml` - Database stack
-- `.deploy/IaC/infra/infra.yml` - Infrastructure stack
-- `.deploy/IaC/infra/.build/pre-infra.yml` - Pre-deployment hooks
-- `.deploy/IaC/infra/.build/post-infra.yml` - Post-deployment hooks
-
-**Inspect template resources:**
+**Check existing stacks:**
 ```bash
-# Validate template syntax
-aws cloudformation validate-template \
-  --template-body file://.deploy/IaC/db/db.yml
-
-# List all resources defined in template
-aws cloudformation get-template-summary \
-  --template-body file://.deploy/IaC/db/db.yml
+aws cloudformation list-stacks --stack-status-filter CREATE_COMPLETE UPDATE_COMPLETE \
+  --query "StackSummaries[?contains(StackName, '{{PROJECT_NAME}}')]" --region us-east-1
 ```
 
-### Discover Existing CloudFormation Stacks
+## Git Workflow for Worktrees
 
-**Check what's already deployed:**
-```bash
-# List all stacks for this project
-aws cloudformation list-stacks \
-  --stack-status-filter CREATE_COMPLETE UPDATE_COMPLETE \
-  --query "StackSummaries[?contains(StackName, '{{PROJECT_NAME}}')]" \
-  --region us-east-1
+Complete workflow when asked to commit and deploy changes.
 
-# Get detailed stack information
-aws cloudformation describe-stacks \
-  --stack-name {{PROJECT_NAME}}-db-staging \
-  --region us-east-1
-```
+### Step 1: Fetch and Rebase
 
-### Discover Pipeline Configuration
-
-**Find pipeline config files:**
-```bash
-# Look for devops.yml (AWS CodePipeline definition)
-ls -la devops.yml 2>/dev/null
-
-# Check for other CI/CD configs
-find . -name "devops.yml" -o -name ".gitlab-ci.yml" -o -name "azure-pipelines.yml"
-```
-
-## Phase 2: Git Workflow for Worktrees
-
-### CRITICAL RULE: Always Rebase Before Committing
-
-**Complete workflow when asked to commit changes:**
-
-**Step 1: Fetch latest changes from origin**
 ```bash
 cd .trees/{{BRANCH_NAME}}
 git fetch origin
-```
-
-**Step 2: Rebase onto parent branch**
-```bash
 git rebase origin/{{PARENT_BRANCH}}
 ```
 
-**Step 3: Resolve conflicts if any**
+If conflicts occur:
 ```bash
-# If conflicts occur:
 git status  # See conflicted files
-
-# Edit conflicting files to resolve
-# Look for markers: <<<<<<< HEAD, =======, >>>>>>> branch-name
-
-# After resolving:
+# Edit files (look for <<<<<<< HEAD, =======, >>>>>>> markers)
 git add .
 git rebase --continue
 ```
 
-**Step 4: Run tests (REQUIRED after rebase)**
-```bash
-cd test
-npm test
+### Step 2: Commit Changes
 
-# Ensure all tests pass before committing
-# If tests fail, fix issues and re-run
-```
-
-**Step 5: Commit your changes**
 ```bash
-cd ..  # Return to worktree root
 git add .
 git commit -m "feat: description of changes"
 ```
 
-**Step 6: Return to root directory**
-```bash
-cd ../..  # Back to project root
-```
+Use conventional commits: `feat:`, `fix:`, `refactor:`, `chore:`, `docs:`
 
-**Step 7: Merge worktree with --no-ff**
+### Step 3: Merge to Parent Branch
+
 ```bash
-# Use the merge script (automatically uses --no-ff)
+cd ../..  # Return to project root
 npm run worktree:merge {{BRANCH_NAME}}
-
-# Or manually:
-git checkout {{PARENT_BRANCH}}
-git merge --no-ff {{BRANCH_NAME}}
 ```
 
-**Step 8: Push to origin (triggers deployments)**
+This automatically uses `--no-ff` to preserve feature branch history.
+
+### Step 4: Push to Origin (Triggers Deployment)
+
 ```bash
 git push origin {{PARENT_BRANCH}}
-
-# IMPORTANT: This push triggers CI/CD pipelines
-# Proceed to Phase 4 to monitor deployment
 ```
 
-**Step 9: Monitor deployment logs (see Phase 4)**
+**IMPORTANT:** This push triggers CI/CD pipelines. Proceed to deployment monitoring.
+
+### Step 5: Monitor Deployment
+
+Immediately after push, monitor deployments:
+
 ```bash
-# Watch GitHub Actions workflow
+# Watch GitHub Actions
 gh run watch --repo {{GITHUB_USERNAME}}/{{REPOSITORY_NAME}}
 
-# Check deployment logs
+# View deployment logs
 gh run view <run-id> --log
 ```
 
-**Step 10: Clean up worktree when complete**
+For CloudFormation deployments triggered by pipeline:
+```bash
+# Monitor stack events
+aws cloudformation describe-stack-events \
+  --stack-name {{PROJECT_NAME}}-infra-staging \
+  --query 'StackEvents[*].[Timestamp,ResourceStatus,ResourceType,LogicalResourceId]' \
+  --output table --region us-east-1
+```
+
+See [GitHub Actions Reference](reference/github-actions.md) for detailed monitoring commands.
+
+### Step 6: Clean Up Worktree
+
+After successful deployment:
 ```bash
 npm run worktree:remove {{BRANCH_NAME}}
 ```
 
-### Git Workflow Best Practices
+## Deployment Monitoring
 
-- **NEVER** use `git push --force` on main/staging/production branches
-- **ALWAYS** use `--no-ff` merge to preserve feature branch history
-- **ALWAYS** fetch and rebase before committing
-- **ALWAYS** run tests after rebase and before merge
-- **ALWAYS** monitor deployment logs after pushing
-- Tag releases: `git tag -a v1.2.3 -m "Release 1.2.3"`
+### After Git Push
 
-### Commit Message Format
-
-Follow conventional commits:
+**Primary action:** Check GitHub Actions workflows
 ```bash
-# Feature
-git commit -m "feat: add user registration endpoint"
+# List recent runs
+gh run list --limit 5 --repo {{GITHUB_USERNAME}}/{{REPOSITORY_NAME}}
 
-# Bug fix
-git commit -m "fix: prevent duplicate user emails"
-
-# Refactor
-git commit -m "refactor: extract validation logic to separate module"
-
-# Other types: test, docs, chore, perf, style
+# Watch latest run
+gh run watch --repo {{GITHUB_USERNAME}}/{{REPOSITORY_NAME}}
 ```
 
-## Phase 3: CloudFormation Deployment Workflow
-
-### Step 1: Discover Templates (if not already done)
-
+**If workflow deploys CloudFormation:** Monitor stack events
 ```bash
-# List all templates
-find .deploy/IaC -type f \( -name "*.yml" -o -name "*.yaml" \)
+# Watch deployment progress
+watch -n 5 "aws cloudformation describe-stack-events \
+  --stack-name {{PROJECT_NAME}}-infra-staging \
+  --max-items 10 --query 'StackEvents[*].[Timestamp,ResourceStatus,LogicalResourceId]' \
+  --output table"
 ```
 
-### Step 2: Validate Templates Before Deployment
-
+**Check for failures:**
 ```bash
-# Validate each template
-aws cloudformation validate-template \
-  --template-body file://.deploy/IaC/db/db.yml
+# Failed GitHub Actions
+gh run list --status=failure --limit 1
 
-aws cloudformation validate-template \
-  --template-body file://.deploy/IaC/infra/infra.yml
+# Failed CloudFormation resources
+aws cloudformation describe-stack-events \
+  --stack-name {{PROJECT_NAME}}-infra-staging \
+  --query "StackEvents[?ResourceStatus=='CREATE_FAILED' || ResourceStatus=='UPDATE_FAILED']"
 ```
 
-### Step 3: Deploy Database Stack
+See [Troubleshooting](troubleshooting.md) for common deployment issues.
+
+## CloudFormation Deployments
+
+### Deploy Database Stack
 
 ```bash
-# Deploy to staging
 aws cloudformation deploy \
   --template-file .deploy/IaC/db/db.yml \
   --stack-name {{PROJECT_NAME}}-db-staging \
   --parameter-overrides file://.deploy/IaC/db/configs/db-staging.json \
-  --capabilities CAPABILITY_IAM \
-  --region us-east-1
-
-# Deploy to production
-aws cloudformation deploy \
-  --template-file .deploy/IaC/db/db.yml \
-  --stack-name {{PROJECT_NAME}}-db-prod \
-  --parameter-overrides file://.deploy/IaC/db/configs/db-prod.json \
-  --capabilities CAPABILITY_IAM \
-  --region us-east-1
+  --capabilities CAPABILITY_IAM --region us-east-1
 ```
 
-### Step 4: Monitor Deployment Progress
-
-**Watch stack events in real-time:**
-```bash
-# Continuously monitor stack events
-aws cloudformation describe-stack-events \
-  --stack-name {{PROJECT_NAME}}-db-staging \
-  --region us-east-1 \
-  --max-items 20
-
-# Watch for completion (blocks until complete/failed)
-aws cloudformation wait stack-create-complete \
-  --stack-name {{PROJECT_NAME}}-db-staging \
-  --region us-east-1
-```
-
-**Check deployment logs:**
-```bash
-# Get detailed event log with timestamps
-aws cloudformation describe-stack-events \
-  --stack-name {{PROJECT_NAME}}-db-staging \
-  --query 'StackEvents[*].[Timestamp,ResourceStatus,ResourceType,LogicalResourceId,ResourceStatusReason]' \
-  --output table \
-  --region us-east-1
-```
-
-### Step 5: Deploy Infrastructure Stack
+### Deploy Infrastructure Stack
 
 ```bash
 aws cloudformation deploy \
   --template-file .deploy/IaC/infra/infra.yml \
   --stack-name {{PROJECT_NAME}}-infra-staging \
   --parameter-overrides file://.deploy/IaC/infra/configs/infra-staging.json \
-  --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
-  --region us-east-1
+  --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM --region us-east-1
 ```
 
-### Step 6: Monitor Infrastructure Deployment Logs
+### Monitor Deployment
 
 ```bash
-# Watch deployment progress
-aws cloudformation describe-stack-events \
-  --stack-name {{PROJECT_NAME}}-infra-staging \
-  --query 'StackEvents[*].[Timestamp,ResourceStatus,ResourceType,LogicalResourceId,ResourceStatusReason]' \
-  --output table \
-  --region us-east-1
+# Watch for completion
+aws cloudformation wait stack-create-complete \
+  --stack-name {{PROJECT_NAME}}-infra-staging --region us-east-1
 
-# Check for failures
-aws cloudformation describe-stack-events \
-  --stack-name {{PROJECT_NAME}}-infra-staging \
-  --query "StackEvents[?ResourceStatus=='CREATE_FAILED' || ResourceStatus=='UPDATE_FAILED']" \
-  --region us-east-1
-```
-
-### Step 7: Verify Stack Outputs
-
-```bash
-# Get stack outputs (API endpoints, resource ARNs, etc.)
+# Check stack outputs
 aws cloudformation describe-stacks \
   --stack-name {{PROJECT_NAME}}-infra-staging \
-  --query 'Stacks[0].Outputs' \
-  --output table \
-  --region us-east-1
+  --query 'Stacks[0].Outputs' --output table --region us-east-1
 ```
 
-### Step 8: Check CloudFormation Drift
+For detailed CloudFormation commands, see [CloudFormation Reference](reference/cloudformation.md).
 
-```bash
-# Detect drift (changes made outside CloudFormation)
-aws cloudformation detect-stack-drift \
-  --stack-name {{PROJECT_NAME}}-infra-staging \
-  --region us-east-1
+## GitHub Actions Workflows
 
-# View drift results
-aws cloudformation describe-stack-drift-detection-status \
-  --stack-drift-detection-id <detection-id> \
-  --region us-east-1
-```
+### Trigger Manual Workflow
 
-## Phase 4: GitHub Actions Deployment Workflow
-
-### Step 1: Discover Active Workflows (if not already done)
-
-```bash
-# List all workflows
-gh workflow list --repo {{GITHUB_USERNAME}}/{{REPOSITORY_NAME}}
-```
-
-### Step 2: Trigger Deployment Workflow
-
-**If workflow runs on push:**
-```bash
-# Already triggered by git push in Phase 2
-# Just monitor the run
-```
-
-**If workflow requires manual trigger:**
 ```bash
 gh workflow run deploy-staging.yml --repo {{GITHUB_USERNAME}}/{{REPOSITORY_NAME}}
 ```
 
-### Step 3: Monitor Workflow Execution
+### Monitor Workflow Execution
 
-**Watch workflow in real-time:**
 ```bash
-# Watch latest run
+# Watch in real-time
 gh run watch --repo {{GITHUB_USERNAME}}/{{REPOSITORY_NAME}}
 
-# List recent runs
-gh run list --workflow=deploy-staging.yml --limit 5 --repo {{GITHUB_USERNAME}}/{{REPOSITORY_NAME}}
-```
-
-### Step 4: Check Workflow Logs
-
-**View logs for specific run:**
-```bash
-# Get run ID from list
-gh run list --workflow=deploy-staging.yml --limit 1 --repo {{GITHUB_USERNAME}}/{{REPOSITORY_NAME}}
-
-# View full logs
+# View specific run logs
 gh run view <run-id> --log --repo {{GITHUB_USERNAME}}/{{REPOSITORY_NAME}}
-
-# View logs for specific job
-gh run view <run-id> --log --job <job-id> --repo {{GITHUB_USERNAME}}/{{REPOSITORY_NAME}}
 ```
 
-**Check for failures:**
-```bash
-# View only failed runs
-gh run list --workflow=deploy-staging.yml --status=failure --repo {{GITHUB_USERNAME}}/{{REPOSITORY_NAME}}
-
-# View failed run details
-gh run view <failed-run-id> --repo {{GITHUB_USERNAME}}/{{REPOSITORY_NAME}}
-```
-
-### Step 5: Analyze Deployment Job Logs
-
-When checking logs, look for:
-- CloudFormation deployment commands
-- AWS CLI output
-- Error messages
-- Stack creation/update status
-- Resource creation failures
-
-**Example log analysis:**
-```bash
-# View logs and grep for errors
-gh run view <run-id> --log --repo {{GITHUB_USERNAME}}/{{REPOSITORY_NAME}} | grep -i "error\|failed\|exception"
-
-# Check CloudFormation-specific logs
-gh run view <run-id> --log --repo {{GITHUB_USERNAME}}/{{REPOSITORY_NAME}} | grep "cloudformation"
-```
-
-## Phase 5: AWS CodePipeline Workflow
-
-### Step 1: Discover Pipeline
+### Re-run Failed Workflow
 
 ```bash
-# List all pipelines
-aws codepipeline list-pipelines --region us-east-1
-
-# Get pipeline details
-aws codepipeline get-pipeline \
-  --name {{PROJECT_NAME}}-pipeline \
-  --region us-east-1
+gh run rerun <run-id> --failed --repo {{GITHUB_USERNAME}}/{{REPOSITORY_NAME}}
 ```
 
-### Step 2: Monitor Pipeline Execution
+For detailed GitHub Actions commands, see [GitHub Actions Reference](reference/github-actions.md).
 
-**Check current pipeline state:**
+## AWS CodePipeline
+
+### Check Pipeline Status
+
 ```bash
 aws codepipeline get-pipeline-state \
-  --name {{PROJECT_NAME}}-pipeline \
-  --region us-east-1
+  --name {{PROJECT_NAME}}-pipeline --region us-east-1
 ```
 
-**List recent executions:**
+### List Recent Executions
+
 ```bash
 aws codepipeline list-pipeline-executions \
-  --pipeline-name {{PROJECT_NAME}}-pipeline \
-  --max-items 10 \
-  --region us-east-1
+  --pipeline-name {{PROJECT_NAME}}-pipeline --max-items 5 --region us-east-1
 ```
 
-### Step 3: Check Stage-Specific Logs
-
-**Get execution details:**
-```bash
-aws codepipeline get-pipeline-execution \
-  --pipeline-name {{PROJECT_NAME}}-pipeline \
-  --pipeline-execution-id <execution-id> \
-  --region us-east-1
-```
-
-**Check action details (CloudFormation deploy action):**
-```bash
-# Find CloudFormation action execution
-aws codepipeline list-action-executions \
-  --pipeline-name {{PROJECT_NAME}}-pipeline \
-  --filter pipelineExecutionId=<execution-id> \
-  --region us-east-1
-```
-
-### Step 4: View CloudFormation Logs from Pipeline
-
-When pipeline uses CloudFormation actions, check stack events:
-
-```bash
-# Pipeline typically creates stacks with predictable names
-# Check stack events during pipeline execution
-aws cloudformation describe-stack-events \
-  --stack-name {{PROJECT_NAME}}-db-staging \
-  --max-items 50 \
-  --region us-east-1
-```
+For detailed CodePipeline commands, see [CodePipeline Reference](reference/codepipeline.md).
 
 ## Deployment Workflow Checklist
 
 When asked to deploy:
 
-1. **Discovery Phase:**
-   - [ ] Find all CloudFormation templates: `find .deploy -name "*.yml"`
-   - [ ] Find all GitHub workflows: `find .github/workflows -name "*.yml"`
+1. **Discover Resources**
+   - [ ] Find CloudFormation templates: `find .deploy -name "*.yml"`
+   - [ ] Find GitHub workflows: `find .github/workflows -name "*.yml"`
    - [ ] Check existing stacks: `aws cloudformation list-stacks`
-   - [ ] List pipelines: `aws codepipeline list-pipelines`
 
-2. **Pre-Deployment:**
-   - [ ] Validate CloudFormation templates
-   - [ ] Verify git branch is correct
-   - [ ] Check AWS credentials and region
-   - [ ] Review parameter files
+2. **Execute Git Workflow**
+   - [ ] Fetch and rebase: `git fetch origin && git rebase origin/main`
+   - [ ] Commit changes: `git commit -m "feat: description"`
+   - [ ] Merge with --no-ff: `npm run worktree:merge <branch>`
+   - [ ] Push to origin: `git push origin main` (triggers deployment)
 
-3. **Deployment:**
-   - [ ] Deploy stacks in order (database first, then infrastructure)
-   - [ ] Monitor CloudFormation events in real-time
-   - [ ] Watch GitHub Actions workflow execution
-   - [ ] Check CodePipeline progress
-
-4. **Log Monitoring:**
-   - [ ] Check CloudFormation stack events for errors
-   - [ ] Review GitHub Actions job logs
-   - [ ] Monitor CodePipeline stage status
-   - [ ] Grep logs for failures: `grep -i "error\|failed"`
-
-5. **Post-Deployment:**
+3. **Monitor Deployment**
+   - [ ] Watch GitHub Actions: `gh run watch`
+   - [ ] Check workflow logs: `gh run view <run-id> --log`
+   - [ ] Monitor CloudFormation events (if applicable)
    - [ ] Verify stack outputs
-   - [ ] Check resource health
-   - [ ] Test deployed endpoints
-   - [ ] Document any issues
+
+4. **Handle Failures**
+   - [ ] Check failed runs: `gh run list --status=failure`
+   - [ ] View CloudFormation failures
+   - [ ] See [Troubleshooting](troubleshooting.md) for solutions
+
+## Safety Rules
+
+- **NEVER** use `git push --force` on main/staging/production branches
+- **ALWAYS** use `--no-ff` merge to preserve feature branch history
+- **ALWAYS** fetch and rebase before committing
+- **ALWAYS** monitor deployment logs after pushing
+- **NEVER** skip CloudFormation validation
+- **NEVER** deploy without checking existing stack status
 
 ## Common Deployment Scenarios
 
-### Scenario 1: Deploy After Git Push
+### Scenario 1: Code Change → Deployment
 
 ```bash
-# 1. Merge to staging branch (triggers workflows)
-git push origin staging
+# 1. Make changes in worktree
+cd .trees/feature-name
 
-# 2. Watch GitHub Actions
-gh run watch --repo {{GITHUB_USERNAME}}/{{REPOSITORY_NAME}}
+# 2. Commit and merge
+git fetch origin && git rebase origin/main
+git add . && git commit -m "feat: implement feature"
+cd ../.. && npm run worktree:merge feature-name
 
-# 3. Check workflow logs
-gh run view <run-id> --log
+# 3. Push (triggers deployment)
+git push origin main
 
-# 4. If workflow deploys CloudFormation, check stack events
-aws cloudformation describe-stack-events \
-  --stack-name {{PROJECT_NAME}}-infra-staging \
-  --max-items 20
+# 4. Monitor
+gh run watch
 ```
 
-### Scenario 2: Manual CloudFormation Deployment
+### Scenario 2: Infrastructure Update
 
 ```bash
 # 1. Find templates
 find .deploy/IaC -name "*.yml"
 
 # 2. Validate
-aws cloudformation validate-template --template-body file://.deploy/IaC/db/db.yml
+aws cloudformation validate-template --template-body file://.deploy/IaC/infra/infra.yml
 
 # 3. Deploy
 aws cloudformation deploy \
-  --template-file .deploy/IaC/db/db.yml \
-  --stack-name {{PROJECT_NAME}}-db-staging \
-  --parameter-overrides file://.deploy/IaC/db/configs/db-staging.json
+  --template-file .deploy/IaC/infra/infra.yml \
+  --stack-name myapp-infra-staging \
+  --parameter-overrides file://.deploy/IaC/infra/configs/infra-staging.json
 
-# 4. Monitor logs in real-time
-watch -n 2 "aws cloudformation describe-stack-events \
-  --stack-name {{PROJECT_NAME}}-db-staging \
-  --max-items 10 \
-  --query 'StackEvents[*].[Timestamp,ResourceStatus,LogicalResourceId]' \
-  --output table"
+# 4. Monitor
+watch -n 5 "aws cloudformation describe-stack-events --stack-name myapp-infra-staging --max-items 10"
 ```
 
 ### Scenario 3: Investigate Failed Deployment
 
 ```bash
-# 1. Find failed GitHub workflow
+# 1. Find failed workflow
 gh run list --status=failure --limit 1
 
-# 2. View failure logs
+# 2. View logs
 gh run view <run-id> --log | grep -i "error"
 
 # 3. Check CloudFormation failures
 aws cloudformation describe-stack-events \
-  --stack-name {{PROJECT_NAME}}-infra-staging \
-  --query "StackEvents[?ResourceStatus=='CREATE_FAILED' || ResourceStatus=='UPDATE_FAILED']"
-
-# 4. Get detailed failure reason
-aws cloudformation describe-stack-events \
-  --stack-name {{PROJECT_NAME}}-infra-staging \
-  --query "StackEvents[0].ResourceStatusReason"
+  --stack-name myapp-infra-staging \
+  --query "StackEvents[?ResourceStatus=='CREATE_FAILED']"
 ```
 
-## Troubleshooting Guide
+For more scenarios, see [Common Scenarios](reference/scenarios.md).
 
-### CloudFormation Deployment Fails
+## Quick Reference
 
-1. **Check stack events:** `aws cloudformation describe-stack-events --stack-name <name>`
-2. **Look for failed resources:** Filter by `CREATE_FAILED` or `UPDATE_FAILED`
-3. **Read failure reason:** Check `ResourceStatusReason` field
-4. **Common causes:**
-   - IAM permission issues
-   - Resource limits exceeded
-   - Invalid parameters
-   - Resource naming conflicts
+### Git Commands
+- Fetch: `git fetch origin`
+- Rebase: `git rebase origin/main`
+- Commit: `git commit -m "type: description"`
+- Merge: `npm run worktree:merge <branch>`
+- Push: `git push origin main`
 
-### GitHub Actions Workflow Fails
+### Deployment Monitoring
+- GitHub Actions: `gh run watch`
+- CloudFormation: `aws cloudformation describe-stack-events --stack-name <name>`
+- CodePipeline: `aws codepipeline get-pipeline-state --name <name>`
 
-1. **View workflow run:** `gh run view <run-id>`
-2. **Check logs:** `gh run view <run-id> --log`
-3. **Look for errors:** Grep for "error", "failed", "exception"
-4. **Common causes:**
-   - Missing secrets/environment variables
-   - AWS credential issues
-   - CloudFormation template errors
-   - Timeout issues
-
-### Pipeline Stuck
-
-1. **Check pipeline state:** `aws codepipeline get-pipeline-state`
-2. **Look for manual approval:** Check if approval action is waiting
-3. **Review stage details:** Check which stage is stuck
-4. **Check logs:** Review CloudFormation/CodeBuild logs for stuck stage
-
-## Safety Rules
-
-**NEVER:**
-- Deploy without checking logs
-- Force-push to main/staging/production
-- Skip CloudFormation validation
-- Ignore drift detection warnings
-- Deploy to production without staging verification
-
-**ALWAYS:**
-- Discover existing resources before deploying
-- Monitor deployment logs in real-time
-- Check CloudFormation stack events for errors
-- Review GitHub Actions logs for failures
-- Verify stack outputs after deployment
-- Check resource health post-deployment
+### Troubleshooting
+- Failed runs: `gh run list --status=failure`
+- Failed stacks: `aws cloudformation describe-stack-events --query "StackEvents[?ResourceStatus=='CREATE_FAILED']"`
+- See [Troubleshooting](troubleshooting.md) for solutions
 
 ## Related Documentation
 
-- CloudFormation templates: `.deploy/IaC/`
-- GitHub workflows: `.github/workflows/`
-- Pipeline config: `devops.yml`
-- See `docs/worktrees/GIT_WORKFLOW.md` for git details
-- See `docs/worktrees/AWS_INFRASTRUCTURE.md` for architecture
+- [CloudFormation Reference](reference/cloudformation.md) - Detailed CloudFormation commands
+- [GitHub Actions Reference](reference/github-actions.md) - Complete GitHub Actions guide
+- [CodePipeline Reference](reference/codepipeline.md) - AWS CodePipeline operations
+- [Common Scenarios](reference/scenarios.md) - Real-world deployment examples
+- [Troubleshooting](troubleshooting.md) - Common issues and solutions
 
----
-
-**Note:** This skill emphasizes discovery-first approach and comprehensive log monitoring during deployments.
+Project documentation:
+- `docs/worktrees/GIT_WORKFLOW.md` - Git workflow guide
+- `docs/worktrees/AWS_INFRASTRUCTURE.md` - Infrastructure architecture
+- `.deploy/IaC/` - CloudFormation templates
+- `.github/workflows/` - GitHub Actions workflows
