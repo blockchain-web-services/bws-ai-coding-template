@@ -1,11 +1,30 @@
 ---
 name: devops
-description: Executes git commands (fetch, rebase, commit, merge, push) following worktree workflow, then monitors resulting deployments. After git push, automatically checks GitHub Actions workflows and CloudFormation deployment logs. Deploys and troubleshoots AWS infrastructure stacks. Use when performing git operations, pushing code, merging worktrees, deploying infrastructure, or checking deployment status.
+description: Executes git commands (fetch, rebase, commit, merge, push) following worktree workflow, then monitors resulting deployments. After git push to staging or prod branches, automatically checks GitHub Actions workflows and CloudFormation deployment logs. All deployments are triggered by git push, not manual AWS CLI commands. Use when performing git operations, pushing code, merging worktrees, or checking deployment status.
 ---
 
 # DevOps
 
 Deployment operations with git workflow execution and automated deployment monitoring.
+
+## AWS Profile Selection
+
+**IMPORTANT:** AWS CLI commands must use the correct profile based on the target environment:
+
+- **Staging deployments:** Use `--profile staging` when working with the `staging` branch
+- **Production deployments:** Use `--profile prod` when working with the `prod` branch
+- **Default:** If no branch/environment is specified, use `--profile staging`
+
+**Examples:**
+```bash
+# Deploying to staging
+git push origin staging
+aws codepipeline get-pipeline-state --name devops-{{REPOSITORY_NAME}}-staging --profile staging --region us-east-1
+
+# Deploying to production
+git push origin prod
+aws codepipeline get-pipeline-state --name devops-{{REPOSITORY_NAME}}-prod --profile prod --region us-east-1
+```
 
 ## Table of Contents
 
@@ -35,8 +54,11 @@ find .deploy -name "*.yml" 2>/dev/null
 
 **Check existing stacks:**
 ```bash
+# List all active stacks (use --profile staging or --profile prod based on target environment)
 aws cloudformation list-stacks --stack-status-filter CREATE_COMPLETE UPDATE_COMPLETE \
-  --query "StackSummaries[?contains(StackName, '{{PROJECT_NAME}}')]" --region us-east-1
+  --profile staging --region us-east-1 \
+  --query 'StackSummaries[*].[StackName,StackStatus]' \
+  --output table
 ```
 
 ## Git Workflow for Worktrees
@@ -80,10 +102,12 @@ This automatically uses `--no-ff` to preserve feature branch history.
 ### Step 4: Push to Origin (Triggers Deployment)
 
 ```bash
-git push origin {{PARENT_BRANCH}}
+git push origin staging  # Push to staging branch to deploy to staging environment
+# OR
+git push origin prod     # Push to prod branch to deploy to production environment
 ```
 
-**IMPORTANT:** This push triggers CI/CD pipelines. Proceed to deployment monitoring.
+**IMPORTANT:** Pushing to `staging` or `prod` branches automatically triggers CI/CD pipelines and CloudFormation deployments. Proceed to deployment monitoring immediately.
 
 ### Step 5: Monitor Deployment
 
@@ -99,11 +123,19 @@ gh run view <run-id> --log
 
 For CloudFormation deployments triggered by pipeline:
 ```bash
-# Monitor stack events
+# First, discover stack names from the pipeline
+# Use --profile staging for staging deployments, --profile prod for production
+aws codepipeline get-pipeline \
+  --name devops-{{REPOSITORY_NAME}}-staging \
+  --profile staging --region us-east-1 \
+  --query 'pipeline.stages[*].actions[?actionTypeId.provider==`CloudFormation`].configuration.StackName' \
+  --output table
+
+# Then monitor stack events (use actual stack name and matching profile)
 aws cloudformation describe-stack-events \
-  --stack-name {{PROJECT_NAME}}-infra-staging \
+  --stack-name <actual-stack-name> \
   --query 'StackEvents[*].[Timestamp,ResourceStatus,ResourceType,LogicalResourceId]' \
-  --output table --region us-east-1
+  --output table --profile staging --region us-east-1
 ```
 
 See [GitHub Actions Reference](reference/github-actions.md) for detailed monitoring commands.
@@ -130,11 +162,19 @@ gh run watch --repo {{GITHUB_USERNAME}}/{{REPOSITORY_NAME}}
 
 **If workflow deploys CloudFormation:** Monitor stack events
 ```bash
-# Watch deployment progress
+# First, get stack name from pipeline (use matching profile for target environment)
+# For staging: --profile staging, for prod: --profile prod
+STACK_NAME=$(aws codepipeline get-pipeline \
+  --name devops-{{REPOSITORY_NAME}}-staging \
+  --profile staging --region us-east-1 \
+  --query 'pipeline.stages[0].actions[?actionTypeId.provider==`CloudFormation`].configuration.StackName' \
+  --output text | head -1)
+
+# Then watch deployment progress (use same profile)
 watch -n 5 "aws cloudformation describe-stack-events \
-  --stack-name {{PROJECT_NAME}}-infra-staging \
+  --stack-name $STACK_NAME \
   --max-items 10 --query 'StackEvents[*].[Timestamp,ResourceStatus,LogicalResourceId]' \
-  --output table"
+  --output table --profile staging --region us-east-1"
 ```
 
 **Check for failures:**
@@ -142,58 +182,23 @@ watch -n 5 "aws cloudformation describe-stack-events \
 # Failed GitHub Actions
 gh run list --status=failure --limit 1
 
-# Failed CloudFormation resources
+# Failed CloudFormation resources (discover stack name from pipeline first)
+# Use --profile staging or --profile prod based on target environment
+STACK_NAME=$(aws codepipeline get-pipeline \
+  --name devops-{{REPOSITORY_NAME}}-staging \
+  --profile staging --region us-east-1 \
+  --query 'pipeline.stages[0].actions[?actionTypeId.provider==`CloudFormation`].configuration.StackName' \
+  --output text | head -1)
+
 aws cloudformation describe-stack-events \
-  --stack-name {{PROJECT_NAME}}-infra-staging \
-  --query "StackEvents[?ResourceStatus=='CREATE_FAILED' || ResourceStatus=='UPDATE_FAILED']"
+  --stack-name $STACK_NAME \
+  --query "StackEvents[?ResourceStatus=='CREATE_FAILED' || ResourceStatus=='UPDATE_FAILED']" \
+  --profile staging --region us-east-1
 ```
 
 See [Troubleshooting](troubleshooting.md) for common deployment issues.
 
-## CloudFormation Deployments
-
-### Deploy Database Stack
-
-```bash
-aws cloudformation deploy \
-  --template-file .deploy/IaC/db/db.yml \
-  --stack-name {{PROJECT_NAME}}-db-staging \
-  --parameter-overrides file://.deploy/IaC/db/configs/db-staging.json \
-  --capabilities CAPABILITY_IAM --region us-east-1
-```
-
-### Deploy Infrastructure Stack
-
-```bash
-aws cloudformation deploy \
-  --template-file .deploy/IaC/infra/infra.yml \
-  --stack-name {{PROJECT_NAME}}-infra-staging \
-  --parameter-overrides file://.deploy/IaC/infra/configs/infra-staging.json \
-  --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM --region us-east-1
-```
-
-### Monitor Deployment
-
-```bash
-# Watch for completion
-aws cloudformation wait stack-create-complete \
-  --stack-name {{PROJECT_NAME}}-infra-staging --region us-east-1
-
-# Check stack outputs
-aws cloudformation describe-stacks \
-  --stack-name {{PROJECT_NAME}}-infra-staging \
-  --query 'Stacks[0].Outputs' --output table --region us-east-1
-```
-
-For detailed CloudFormation commands, see [CloudFormation Reference](reference/cloudformation.md).
-
 ## GitHub Actions Workflows
-
-### Trigger Manual Workflow
-
-```bash
-gh workflow run deploy-staging.yml --repo {{GITHUB_USERNAME}}/{{REPOSITORY_NAME}}
-```
 
 ### Monitor Workflow Execution
 
@@ -215,18 +220,30 @@ For detailed GitHub Actions commands, see [GitHub Actions Reference](reference/g
 
 ## AWS CodePipeline
 
+**Pipeline naming:** `devops-{{REPOSITORY_NAME}}-staging` or `devops-{{REPOSITORY_NAME}}-prod`
+
 ### Check Pipeline Status
 
 ```bash
+# Staging pipeline
 aws codepipeline get-pipeline-state \
-  --name {{PROJECT_NAME}}-pipeline --region us-east-1
+  --name devops-{{REPOSITORY_NAME}}-staging --profile staging --region us-east-1
+
+# Production pipeline
+aws codepipeline get-pipeline-state \
+  --name devops-{{REPOSITORY_NAME}}-prod --profile prod --region us-east-1
 ```
 
 ### List Recent Executions
 
 ```bash
+# Staging pipeline executions
 aws codepipeline list-pipeline-executions \
-  --pipeline-name {{PROJECT_NAME}}-pipeline --max-items 5 --region us-east-1
+  --pipeline-name devops-{{REPOSITORY_NAME}}-staging --max-items 5 --profile staging --region us-east-1
+
+# Production pipeline executions
+aws codepipeline list-pipeline-executions \
+  --pipeline-name devops-{{REPOSITORY_NAME}}-prod --max-items 5 --profile prod --region us-east-1
 ```
 
 For detailed CodePipeline commands, see [CodePipeline Reference](reference/codepipeline.md).
@@ -241,10 +258,10 @@ When asked to deploy:
    - [ ] Check existing stacks: `aws cloudformation list-stacks`
 
 2. **Execute Git Workflow**
-   - [ ] Fetch and rebase: `git fetch origin && git rebase origin/main`
+   - [ ] Fetch and rebase: `git fetch origin && git rebase origin/staging`
    - [ ] Commit changes: `git commit -m "feat: description"`
    - [ ] Merge with --no-ff: `npm run worktree:merge <branch>`
-   - [ ] Push to origin: `git push origin main` (triggers deployment)
+   - [ ] Push to staging or prod: `git push origin staging` (triggers deployment)
 
 3. **Monitor Deployment**
    - [ ] Watch GitHub Actions: `gh run watch`
@@ -259,12 +276,12 @@ When asked to deploy:
 
 ## Safety Rules
 
-- **NEVER** use `git push --force` on main/staging/production branches
+- **NEVER** use `git push --force` on main/staging/prod branches
 - **ALWAYS** use `--no-ff` merge to preserve feature branch history
 - **ALWAYS** fetch and rebase before committing
-- **ALWAYS** monitor deployment logs after pushing
-- **NEVER** skip CloudFormation validation
-- **NEVER** deploy without checking existing stack status
+- **ALWAYS** monitor deployment logs after pushing to staging or prod
+- **Deployments are automatic:** Pushing to staging or prod branches triggers CI/CD pipelines
+- **No manual deployments:** Never use `aws cloudformation deploy` - all deployments happen via git push
 
 ## Common Deployment Scenarios
 
@@ -274,38 +291,25 @@ When asked to deploy:
 # 1. Make changes in worktree
 cd .trees/feature-name
 
-# 2. Commit and merge
-git fetch origin && git rebase origin/main
+# 2. Commit and merge to staging
+git fetch origin && git rebase origin/staging
 git add . && git commit -m "feat: implement feature"
 cd ../.. && npm run worktree:merge feature-name
 
-# 3. Push (triggers deployment)
-git push origin main
+# 3. Push to staging (triggers deployment)
+git push origin staging
 
-# 4. Monitor
+# 4. Monitor deployment
 gh run watch
+
+# Discover and monitor CloudFormation stack
+aws codepipeline get-pipeline \
+  --name devops-{{REPOSITORY_NAME}}-staging \
+  --profile staging --region us-east-1 \
+  --query 'pipeline.stages[*].actions[?actionTypeId.provider==`CloudFormation`].configuration.StackName'
 ```
 
-### Scenario 2: Infrastructure Update
-
-```bash
-# 1. Find templates
-find .deploy/IaC -name "*.yml"
-
-# 2. Validate
-aws cloudformation validate-template --template-body file://.deploy/IaC/infra/infra.yml
-
-# 3. Deploy
-aws cloudformation deploy \
-  --template-file .deploy/IaC/infra/infra.yml \
-  --stack-name myapp-infra-staging \
-  --parameter-overrides file://.deploy/IaC/infra/configs/infra-staging.json
-
-# 4. Monitor
-watch -n 5 "aws cloudformation describe-stack-events --stack-name myapp-infra-staging --max-items 10"
-```
-
-### Scenario 3: Investigate Failed Deployment
+### Scenario 2: Investigate Failed Deployment
 
 ```bash
 # 1. Find failed workflow
@@ -317,7 +321,8 @@ gh run view <run-id> --log | grep -i "error"
 # 3. Check CloudFormation failures
 aws cloudformation describe-stack-events \
   --stack-name myapp-infra-staging \
-  --query "StackEvents[?ResourceStatus=='CREATE_FAILED']"
+  --query "StackEvents[?ResourceStatus=='CREATE_FAILED']" \
+  --profile staging --region us-east-1
 ```
 
 For more scenarios, see [Common Scenarios](reference/scenarios.md).
@@ -326,19 +331,20 @@ For more scenarios, see [Common Scenarios](reference/scenarios.md).
 
 ### Git Commands
 - Fetch: `git fetch origin`
-- Rebase: `git rebase origin/main`
+- Rebase: `git rebase origin/staging` or `git rebase origin/prod`
 - Commit: `git commit -m "type: description"`
 - Merge: `npm run worktree:merge <branch>`
-- Push: `git push origin main`
+- Push: `git push origin staging` or `git push origin prod` (triggers deployment)
 
 ### Deployment Monitoring
 - GitHub Actions: `gh run watch`
-- CloudFormation: `aws cloudformation describe-stack-events --stack-name <name>`
-- CodePipeline: `aws codepipeline get-pipeline-state --name <name>`
+- CodePipeline: `aws codepipeline get-pipeline-state --name devops-{{REPOSITORY_NAME}}-staging --profile staging --region us-east-1`
+- CloudFormation: Discover stack names from pipeline first (see CloudFormation Reference)
 
 ### Troubleshooting
 - Failed runs: `gh run list --status=failure`
-- Failed stacks: `aws cloudformation describe-stack-events --query "StackEvents[?ResourceStatus=='CREATE_FAILED']"`
+- Failed pipeline: `aws codepipeline get-pipeline-state --name devops-{{REPOSITORY_NAME}}-staging --profile staging`
+- Failed stacks: Discover stack name from pipeline, then check events (see CloudFormation Reference)
 - See [Troubleshooting](troubleshooting.md) for solutions
 
 ## Related Documentation
