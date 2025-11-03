@@ -26,6 +26,56 @@ git push origin prod
 aws codepipeline get-pipeline-state --name devops-{{REPOSITORY_NAME}}-prod --profile prod --region us-east-1
 ```
 
+## ⚠️ Pre-Flight Safety Checks
+
+**CRITICAL:** Before ANY file modification operation, verify your workspace location to prevent accidentally modifying root repository files.
+
+### Workspace Verification Commands
+
+Run these commands before modifying files:
+
+```bash
+# Check if you're in a worktree
+pwd | grep -q "\.trees/" && echo "✓ In worktree" || echo "⚠️ In root repository"
+
+# Get current working directory
+CURRENT_DIR=$(pwd)
+echo "Working in: $CURRENT_DIR"
+
+# If in worktree, extract branch name
+if [[ "$CURRENT_DIR" =~ \.trees/([^/]+) ]]; then
+    WORKTREE_BRANCH="${BASH_REMATCH[1]}"
+    echo "Worktree branch: $WORKTREE_BRANCH"
+fi
+```
+
+### Safety Rules
+
+1. **If in a worktree (`.trees/*/`):**
+   - ✅ **ONLY modify files within the worktree directory**
+   - ✅ All file paths should be relative to the worktree root
+   - ❌ **NEVER modify files in `../../` (root repository)**
+   - ❌ **NEVER use absolute paths to root repository files**
+
+2. **If in root repository:**
+   - ⚠️ Be aware that changes affect ALL worktrees
+   - ✅ Safe operations: creating worktrees, merging worktrees, configuration changes
+   - ⚠️ Risky operations: modifying source code (should be done in worktrees)
+
+3. **Before any Edit or Write tool usage:**
+   - Verify the file path is within your current workspace
+   - Confirm with user if you need to modify root repository files from a worktree
+
+### Quick Verification
+
+```bash
+# Verify file is in current workspace
+FILE_PATH="path/to/file"
+[[ "$FILE_PATH" != *".."* ]] && echo "✓ Safe path" || echo "⚠️ Path escapes workspace"
+```
+
+**Rule:** If user asks to modify files and you're in a worktree, ALL file operations must stay within the worktree directory. If you need to modify root files, ask the user to confirm first.
+
 ## Table of Contents
 
 - [Project Discovery](#project-discovery)

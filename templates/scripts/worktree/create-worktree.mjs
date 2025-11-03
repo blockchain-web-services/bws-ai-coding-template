@@ -305,6 +305,47 @@ Press Enter to skip, or type 'y' to add context: `);
 **Branch**: ${branchName}
 **Parent Branch**: ${parentBranch}
 
+---
+
+## ⚠️ CRITICAL: Working Directory Boundaries
+
+**YOU ARE IN A WORKTREE** (\`.trees/${branchName}/\`)
+
+**IMPORTANT RULES:**
+
+1. ✅ **ONLY modify files within THIS worktree directory**
+   - Current worktree path: \`${worktreePath}\`
+   - All your work happens HERE
+
+2. ❌ **NEVER modify files in the root repository**
+   - Root repository path: \`${rootDir}\`
+   - DO NOT EDIT files outside the worktree
+
+3. 🔍 **Always verify your working directory before file operations**
+   \`\`\`bash
+   pwd  # Should show: ${worktreePath}
+   \`\`\`
+
+4. 🚫 **If you need to modify root files, STOP and ask the user first**
+
+**Why this matters:**
+- Worktrees share the same git repository but have separate working directories
+- Changes to root files affect ALL worktrees and could break parallel development
+- The merge script handles bringing changes back to root safely
+
+**Safe operations from worktree:**
+- ✅ Modify any file in \`.trees/${branchName}/\`
+- ✅ Run tests in \`test/\` directory
+- ✅ Commit changes with \`git commit\`
+- ✅ Run \`npm run worktree:merge ${branchName}\` from root (script handles it)
+
+**Unsafe operations:**
+- ❌ Modifying \`../../\` files (root directory)
+- ❌ Running \`cd ../..\` and editing files there
+- ❌ Using absolute paths to root repository files
+
+---
+
 ## Feature/Fix Description
 
 ${featureDesc || 'TODO: Add feature description'}
@@ -368,9 +409,68 @@ npm run worktree:remove ${branchName}
     writeFileSync(claudeInstructionsPath, claudeInstructionsContent);
     console.log(`\n✅ Created CLAUDE_INSTRUCTIONS.md`);
 
-    // Create CLAUDE.md with reference
-    const claudeMdContent = `
-⚠️ **IMPORTANT**: Read \`CLAUDE_INSTRUCTIONS.md\` for context before making changes in this worktree.
+    // Create CLAUDE.md with explicit workspace boundary warnings
+    const claudeMdContent = `# ⚠️ WORKTREE WORKSPACE BOUNDARY
+
+**Current Location:** \`.trees/${branchName}/\`
+**Working Directory:** \`${worktreePath}\`
+
+---
+
+## 🚨 CRITICAL RULES
+
+### 1. STAY IN THIS WORKTREE
+**ONLY modify files within this directory**
+- ✅ Safe: Any file in \`${worktreePath}\`
+- ❌ Forbidden: Any file in \`${rootDir}\` (root repository)
+
+### 2. VERIFY BEFORE EDITING
+**Always check your working directory before file operations:**
+\`\`\`bash
+pwd  # Must show: ${worktreePath}
+\`\`\`
+
+### 3. DO NOT MODIFY ROOT
+**Never change files in \`../../\` (the root repository)**
+- Root files affect ALL worktrees and other developers
+- Changes must go through the merge process
+- If you need to modify root files, ASK THE USER FIRST
+
+### 4. READ INSTRUCTIONS FIRST
+**See \`CLAUDE_INSTRUCTIONS.md\` for:**
+- ✓ What you're building and why
+- ✓ Task checklist
+- ✓ Technical approach
+- ✓ Git workflow for this worktree
+- ✓ Complete workspace boundary rules
+
+---
+
+## When to Access Root Repository
+
+**Only these operations should touch root:**
+
+1. **Merging worktree** (script handles boundaries):
+   \`\`\`bash
+   cd ../..
+   npm run worktree:merge ${branchName}
+   \`\`\`
+
+2. **Listing worktrees** (read-only):
+   \`\`\`bash
+   npm run worktree:list
+   \`\`\`
+
+3. **Creating new worktrees** (from root):
+   \`\`\`bash
+   npm run worktree:create
+   \`\`\`
+
+**All development work happens HERE in the worktree.**
+
+---
+
+⚠️ **If Claude Code suggests modifying root files, STOP and confirm with the user first.**
 `;
 
     const claudeMdPath = join(worktreePath, 'CLAUDE.md');
@@ -464,6 +564,27 @@ test/docker-compose.worktree.yml
     console.log(`  • Remove worktree:    npm run worktree:remove ${branchName}`);
     console.log('  • List all worktrees: npm run worktree:list');
     console.log(`  • Merge when done:    npm run worktree:merge ${branchName}`);
+
+    // Workspace boundary warning
+    console.log('\n⚠️  IMPORTANT: Workspace Boundaries');
+    console.log('┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓');
+    console.log('┃                                                          ┃');
+    console.log('┃  🚨 CRITICAL: Stay Within This Worktree                 ┃');
+    console.log('┃                                                          ┃');
+    console.log('┃  When working in this worktree:                          ┃');
+    console.log('┃                                                          ┃');
+    console.log('┃  ✅ ONLY modify files in:                               ┃');
+    console.log(`┃     ${worktreePath.padEnd(54)} ┃`);
+    console.log('┃                                                          ┃');
+    console.log('┃  ❌ NEVER modify files in:                              ┃');
+    console.log(`┃     ${rootDir.padEnd(54)} ┃`);
+    console.log('┃     (root repository - affects ALL worktrees)            ┃');
+    console.log('┃                                                          ┃');
+    console.log('┃  📖 See CLAUDE_INSTRUCTIONS.md and CLAUDE.md for         ┃');
+    console.log('┃     complete workspace boundary rules                    ┃');
+    console.log('┃                                                          ┃');
+    console.log('┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛');
+    console.log('');
 
 } catch (error) {
     console.error('❌ Error creating worktree:', error.message);
