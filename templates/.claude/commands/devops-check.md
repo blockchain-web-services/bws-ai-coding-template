@@ -16,6 +16,8 @@ This command:
 3. **Waits** for all deployments to complete (even if they take 10+ minutes)
 4. **Collects** failure logs from any failed deployments
 5. **Fixes** issues automatically based on the logs
+6. **Re-monitors** automatically after applying fixes
+7. **Iterates** until all pipelines pass (up to 5 attempts)
 
 ## Workflow
 
@@ -319,7 +321,7 @@ After implementing fixes:
 
 ```bash
 git add .
-git commit -m "fix: Address deployment failures
+git commit -m "fix: Address deployment failures (Iteration {N})
 
 Issues fixed:
 - [describe GitHub Actions fixes]
@@ -332,17 +334,132 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 git push origin {CURRENT_BRANCH}
 ```
 
-### Step 8: Re-run Monitoring (Optional)
+### Step 8: Automatic Re-monitoring and Iteration
 
-Ask user if they want to re-run the monitoring to verify fixes:
+**IMPORTANT:** After pushing fixes, automatically re-launch monitoring agents to verify the fixes worked.
+
+**Iteration Loop:**
 
 ```
-✅ Fixes have been committed and pushed.
+ITERATION = 1
+MAX_ITERATIONS = 5
+ALL_FIXES = []
 
-The deployment has been triggered again. Would you like me to monitor it?
-- Yes: Re-run /devops-check
-- No: You can check manually or run /devops-check later
+LOOP until all pipelines pass OR max iterations reached:
+    1. Show iteration status:
+       "🔄 Iteration {ITERATION}/{MAX_ITERATIONS}: Monitoring deployments..."
+
+    2. Re-launch monitoring agents (same as Step 3)
+       - Launch GitHub Actions monitor
+       - Launch CodePipeline monitor (if configured)
+       - Wait for both to complete
+
+    3. Process results:
+       IF all pipelines SUCCESS:
+           ✅ All deployments successful!
+           BREAK loop
+
+       ELSE IF failures found:
+           IF ITERATION >= MAX_ITERATIONS:
+               ❌ Max iterations reached. Manual intervention required.
+               SHOW summary of all fixes attempted
+               BREAK loop
+
+           ELSE:
+               📋 Collecting failure logs...
+               🔧 Analyzing and implementing fixes...
+               💾 Commit and push (Step 7)
+               INCREMENT ITERATION
+               CONTINUE loop
 ```
+
+**Implementation Details:**
+
+1. **Track all fixes across iterations:**
+   ```
+   ALL_FIXES.append({
+       iteration: ITERATION,
+       system: "GitHub Actions" or "CodePipeline",
+       issue: "Description of issue",
+       fix: "Description of fix applied",
+       files_changed: ["file1.js", "file2.yml"]
+   })
+   ```
+
+2. **Show progress during iterations:**
+   ```
+   🔄 Iteration 1/5: Monitoring deployments...
+   ⏳ Waiting for GitHub Actions... (3m 45s)
+   ⏳ Waiting for CodePipeline... (8m 12s)
+
+   📊 Results:
+     ❌ GitHub Actions: FAILED
+     ✅ CodePipeline: SUCCESS
+
+   🔧 Applying fixes for GitHub Actions failure...
+   📝 Committed and pushed
+
+   🔄 Iteration 2/5: Re-monitoring after fixes...
+   ```
+
+3. **Display final summary after loop exits:**
+   ```
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ✅ ALL DEPLOYMENTS SUCCESSFUL!
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+   📊 Summary:
+   - Total iterations: 2
+   - GitHub Actions: SUCCESS (after 2 fixes)
+   - CodePipeline: SUCCESS (no fixes needed)
+
+   📝 Fixes Applied:
+
+   Iteration 1:
+   - [GitHub Actions] Fixed TypeScript error in api/handler.ts
+     Files: api/handler.ts
+
+   - [GitHub Actions] Added missing dependency 'axios'
+     Files: package.json
+
+   Iteration 2:
+   - [GitHub Actions] Fixed test assertion in tests/api.test.ts
+     Files: tests/api.test.ts
+
+   🎉 All pipelines are now passing!
+   ```
+
+4. **If max iterations reached:**
+   ```
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ⚠️ MAX ITERATIONS REACHED (5/5)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+   Some deployments are still failing after 5 attempts.
+
+   📊 Final Status:
+   - GitHub Actions: FAILED
+   - CodePipeline: SUCCESS
+
+   📝 Fixes Attempted (5 iterations):
+   [Show all fixes from ALL_FIXES list]
+
+   ⚠️ Remaining Issues:
+   - GitHub Actions: [Current failure description]
+
+   💡 Next Steps:
+   1. Review the logs manually: gh run view {RUN_ID} --log
+   2. The issue may require architectural changes
+   3. Check if external dependencies are causing failures
+   4. Consider reaching out for help if issue persists
+   ```
+
+**Automatic vs Manual Control:**
+
+- **Default:** Automatically iterate until all pass (up to 5 times)
+- **Max iterations:** Configurable (default: 5)
+- **No user prompts:** Runs fully automated
+- **Timeout protection:** Each iteration has same timeout limits as initial run
 
 ## Error Handling
 
@@ -390,6 +507,8 @@ Prioritize fixes:
 
 ## Example Execution Flow
 
+### Example 1: Single Iteration (All Pass)
+
 ```
 🚀 DevOps Check Starting...
 
@@ -400,54 +519,214 @@ Prioritize fixes:
   ✓ GitHub Actions
   ✓ AWS CodePipeline
 
+🔄 Iteration 1/5: Monitoring deployments...
 🤖 Launching monitoring agents in parallel...
 
-⏳ Monitoring deployments (this may take several minutes)...
-
-[Wait for agents to complete - may take 10+ minutes]
+⏳ Monitoring (this may take several minutes)...
 
 📊 Results:
-  ✅ GitHub Actions: SUCCESS (completed in 3m 42s)
+  ✅ GitHub Actions: SUCCESS (3m 42s)
+  ✅ CodePipeline: SUCCESS (8m 15s)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ ALL DEPLOYMENTS SUCCESSFUL!
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📊 Summary:
+- Total iterations: 1
+- GitHub Actions: SUCCESS
+- CodePipeline: SUCCESS
+
+🎉 All pipelines passed on first attempt!
+```
+
+### Example 2: Multiple Iterations with Fixes
+
+```
+🚀 DevOps Check Starting...
+
+📍 Branch: staging
+📦 Repository: blockchain-web-services/bws-api-telegram-xbot
+
+🔍 Detected systems:
+  ✓ GitHub Actions
+  ✓ AWS CodePipeline
+
+🔄 Iteration 1/5: Monitoring deployments...
+🤖 Launching monitoring agents in parallel...
+
+⏳ Monitoring (this may take several minutes)...
+
+📊 Results (Iteration 1):
+  ❌ GitHub Actions: FAILED
   ❌ CodePipeline: FAILED
 
-📋 CodePipeline Failure Details:
-  Stage: Deploy-Infrastructure
-  Action: DeployInfraStack
-  Error: CREATE_FAILED - Resource DemoTable (AWS::DynamoDB::Table)
-  Reason: Table already exists with different key schema
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 Failure Details:
 
-🔧 Analyzing failure...
+[GitHub Actions]
+Job: test
+Error: TypeError: Cannot read property 'id' of undefined
+File: src/api/handler.ts:42
 
-The DynamoDB table 'DemoTable' exists with a different key schema.
-Options:
-1. Delete existing table (data loss!)
-2. Rename new table
-3. Update template to match existing schema
+[CodePipeline]
+Stage: Deploy-Infrastructure
+Error: CREATE_FAILED - DynamoDB table key schema mismatch
+Resource: DemoTable
 
-I recommend option 2: Rename the new table to 'DemoTable-v2'
+🔧 Analyzing failures and applying fixes...
 
-Applying fix to .deploy/IaC/db/db.yml...
+Fix 1: [GitHub Actions] Added null check in handler.ts
+  Files: src/api/handler.ts
 
-✅ Fix applied
-📝 Committing changes...
+Fix 2: [CodePipeline] Renamed table to DemoTable-v2
+  Files: .deploy/IaC/db/db.yml
+
+📝 Committing: "fix: Address deployment failures (Iteration 1)"
 📤 Pushing to staging...
+✅ Fixes deployed
 
-✅ Fixes have been deployed
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Would you like me to monitor the new deployment? [y/N]:
+🔄 Iteration 2/5: Re-monitoring after fixes...
+🤖 Launching monitoring agents in parallel...
+
+⏳ Monitoring (this may take several minutes)...
+
+📊 Results (Iteration 2):
+  ❌ GitHub Actions: FAILED
+  ✅ CodePipeline: SUCCESS
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 Failure Details:
+
+[GitHub Actions]
+Job: test
+Error: Test suite failed - Expected 200, got 404
+File: tests/api.test.ts:25
+
+🔧 Analyzing failure and applying fix...
+
+Fix 3: [GitHub Actions] Updated test expectation to match new endpoint
+  Files: tests/api.test.ts
+
+📝 Committing: "fix: Address deployment failures (Iteration 2)"
+📤 Pushing to staging...
+✅ Fixes deployed
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔄 Iteration 3/5: Re-monitoring after fixes...
+🤖 Launching monitoring agents in parallel...
+
+⏳ Monitoring (this may take several minutes)...
+
+📊 Results (Iteration 3):
+  ✅ GitHub Actions: SUCCESS (3m 28s)
+  ✅ CodePipeline: SUCCESS (already passed)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ ALL DEPLOYMENTS SUCCESSFUL!
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📊 Summary:
+- Total iterations: 3
+- GitHub Actions: SUCCESS (after 3 fixes)
+- CodePipeline: SUCCESS (after 1 fix)
+
+📝 All Fixes Applied:
+
+Iteration 1:
+  ✓ [GitHub Actions] Added null check in handler.ts
+    Files: src/api/handler.ts
+
+  ✓ [CodePipeline] Renamed table to DemoTable-v2
+    Files: .deploy/IaC/db/db.yml
+
+Iteration 2:
+  ✓ [GitHub Actions] Updated test expectation to match new endpoint
+    Files: tests/api.test.ts
+
+🎉 All pipelines are now passing!
+```
+
+### Example 3: Max Iterations Reached
+
+```
+🚀 DevOps Check Starting...
+
+[... monitoring and fixes for iterations 1-4 ...]
+
+🔄 Iteration 5/5: Re-monitoring after fixes...
+🤖 Launching monitoring agents in parallel...
+
+⏳ Monitoring (this may take several minutes)...
+
+📊 Results (Iteration 5):
+  ❌ GitHub Actions: FAILED
+  ✅ CodePipeline: SUCCESS
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️ MAX ITERATIONS REACHED (5/5)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Some deployments are still failing after 5 attempts.
+
+📊 Final Status:
+  ❌ GitHub Actions: FAILED
+  ✅ CodePipeline: SUCCESS
+
+📝 Fixes Attempted (5 iterations):
+  Iteration 1: Fixed handler.ts null check, renamed DynamoDB table
+  Iteration 2: Updated test expectations
+  Iteration 3: Fixed linting errors
+  Iteration 4: Added missing type definitions
+  Iteration 5: Fixed async/await handling
+
+⚠️ Remaining Issue:
+[GitHub Actions] Integration test still failing
+Error: Connection timeout to external API
+File: tests/integration/api.test.ts
+
+💡 Next Steps:
+1. The external API may be down or rate-limiting
+2. Check if API credentials are properly configured
+3. Consider mocking external API calls in tests
+4. Review logs manually: gh run view {RUN_ID} --log
+5. This may require architectural changes to test setup
 ```
 
 ## Best Practices
 
 1. **Always run this command after pushing to staging/prod**
-2. **Don't interrupt while agents are monitoring** (they may be waiting for 10+ minute deployments)
-3. **Review proposed fixes** before they're committed (command will show what it's changing)
+2. **Don't interrupt during iterations** - The command may take 30+ minutes if multiple iterations are needed
+3. **Trust the iteration loop** - The command will automatically retry until success or max iterations
 4. **Use with worktree merge workflow**: After merging with `/worktree-merge`, run `/devops-check` to verify deployment
+5. **Monitor iteration progress** - Each iteration shows clear status and what's being fixed
+6. **Review final summary** - Shows all fixes applied across all iterations
 
 ## Notes
 
-- This command uses long-running Task agents that may take 10+ minutes
+**Automatic Iteration:**
+- Command automatically re-monitors after each fix (up to 5 times)
+- No user intervention needed between iterations
+- Fully automated fix-and-verify loop
+- Stops when all pipelines pass OR max iterations reached
+
+**Timing:**
+- First iteration: 10-15 minutes (initial deployment monitoring)
+- Each retry iteration: 10-15 minutes (re-deployment monitoring)
+- Total time for 3 iterations: ~30-45 minutes
+- Max time (5 iterations): ~50-75 minutes
+
+**Agent Behavior:**
 - Agents run in parallel for faster results
-- Main thread waits for all agents before processing results
-- Fixes are automatic but can be reviewed before committing
-- Re-running the command after fixes will verify they worked
+- Each iteration launches fresh monitoring agents
+- Agents wait patiently for 10+ minute deployments
+- Main thread processes all agent results together
+
+**Fix Tracking:**
+- All fixes tracked across iterations in ALL_FIXES array
+- Commit messages include iteration number
+- Final summary shows complete fix history
+- Easy to understand what was changed and when
