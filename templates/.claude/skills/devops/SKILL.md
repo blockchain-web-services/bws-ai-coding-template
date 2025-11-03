@@ -65,6 +65,22 @@ aws cloudformation list-stacks --stack-status-filter CREATE_COMPLETE UPDATE_COMP
 
 Complete workflow when asked to commit and deploy changes.
 
+### Understanding Parent Branches
+
+Each worktree is created from a **parent branch** (also called root branch). The parent branch is automatically detected and stored when the worktree is created.
+
+**Common parent branches:**
+- `staging` - For feature development and testing
+- `prod` - For production hotfixes
+- `main` or `master` - For general development
+
+**How parent branch is determined:**
+1. Automatically detected from current branch when worktree is created
+2. Stored in `.trees/{BRANCH_NAME}/test/.worktree-info.json`
+3. Also documented in `.trees/{BRANCH_NAME}/CLAUDE_INSTRUCTIONS.md`
+
+**The merge script validates** that you're on the correct parent branch before merging. If you're on the wrong branch, it will show an error and tell you which branch to checkout.
+
 ### Step 1: Fetch and Rebase
 
 ```bash
@@ -92,14 +108,49 @@ Use conventional commits: `feat:`, `fix:`, `refactor:`, `chore:`, `docs:`
 
 ### Step 3: Merge to Parent Branch
 
+**IMPORTANT:** You must be in the project root directory (not inside `.trees/`) when running the merge command.
+
 ```bash
-cd ../..  # Return to project root
-npm run worktree:merge {{BRANCH_NAME}}
+cd ../..  # Return to project root (if inside worktree)
+npm run worktree:merge {{BRANCH_NAME}} [--update] [--force] [--no-push]
 ```
 
-This automatically uses `--no-ff` to preserve feature branch history.
+**What the merge script does:**
+1. **Validates parent branch** - Ensures you're on the correct branch before merging
+2. **Uses `--no-ff`** - Preserves feature branch history in git log
+3. **Excludes worktree-specific files** - Automatically skips:
+   - `.env.worktree` - Unique worktree environment config
+   - `docker-compose.worktree.yml` - Worktree-specific containers
+   - `CLAUDE_INSTRUCTIONS.md` - Worktree context file
+   - `.worktree-info.json` - Worktree metadata
+4. **Preserves main branch files** - Keeps main branch version of:
+   - `test/.env` - Main environment config
+   - `test/package.json` - Main test dependencies
+   - `.gitignore` - Worktree patterns
+5. **Pushes automatically** - By default, pushes to origin after merge (unless `--no-push` is used)
+
+**Script flags:**
+- `--update` - Automatically rebase the worktree branch before merging (recommended)
+- `--force` - Merge even if worktree branch is outdated (risky)
+- `--no-push` - Skip automatic push to origin after merge
+
+**Examples:**
+```bash
+# Recommended: Auto-rebase and merge
+npm run worktree:merge feature-auth --update
+
+# Merge without auto-push (manual push later)
+npm run worktree:merge feature-auth --no-push
+
+# Force merge outdated branch (not recommended)
+npm run worktree:merge feature-auth --force
+```
 
 ### Step 4: Push to Origin (Triggers Deployment)
+
+**Note:** If you used the merge command WITHOUT `--no-push`, the push happens automatically and you can skip to Step 5 (Monitor Deployment).
+
+If you used `--no-push`, manually push now:
 
 ```bash
 git push origin staging  # Push to staging branch to deploy to staging environment

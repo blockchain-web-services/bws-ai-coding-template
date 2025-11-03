@@ -215,9 +215,13 @@ WORKTREE_NAME=${branchName}
     // Write environment configuration
     const worktreeTestDir = join(worktreePath, 'test');
 
+    // Detect parent branch
+    const parentBranch = detectParentBranch();
+
     // Create worktree info file
     const infoContent = {
         branchName,
+        parentBranch,
         createdAt: new Date().toISOString(),
         configuration: config,
         paths: {
@@ -235,9 +239,6 @@ WORKTREE_NAME=${branchName}
     // Step 4: Create Claude Code integration files
     console.log('\n📝 Claude Code Integration');
     console.log('━'.repeat(50));
-
-    // Detect parent branch
-    const parentBranch = detectParentBranch();
 
     const wantsContext = await promptUser(`Would you like to add context/description for this worktree?
 This helps Claude Code understand the feature's purpose and approach.

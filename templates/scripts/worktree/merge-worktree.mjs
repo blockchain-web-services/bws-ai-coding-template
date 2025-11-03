@@ -90,6 +90,42 @@ function shouldPreserveMainVersion(file) {
     return PRESERVE_MAIN_FILES.includes(file);
 }
 
+function detectExpectedParentBranch(branchName) {
+    // Try reading from .worktree-info.json first
+    const infoPath = join(rootDir, '.trees', branchName, 'test', '.worktree-info.json');
+
+    if (existsSync(infoPath)) {
+        try {
+            const info = JSON.parse(readFileSync(infoPath, 'utf8'));
+            if (info.parentBranch) {
+                return info.parentBranch;
+            }
+        } catch (error) {
+            // Continue to fallback methods
+        }
+    }
+
+    // Fallback: Try reading from CLAUDE_INSTRUCTIONS.md
+    const claudePath = join(rootDir, '.trees', branchName, 'CLAUDE_INSTRUCTIONS.md');
+    if (existsSync(claudePath)) {
+        try {
+            const content = readFileSync(claudePath, 'utf8');
+            const match = content.match(/\*\*Parent Branch\*\*:\s*`?(\S+?)`?(?:\s|$)/);
+            if (match && match[1]) {
+                return match[1];
+            }
+        } catch (error) {
+            // Continue to next fallback
+        }
+    }
+
+    return null;
+}
+
+function isRootBranch(branchName) {
+    return ['main', 'master', 'staging', 'prod'].includes(branchName);
+}
+
 // Get branch name and options from arguments
 const branchName = process.argv[2];
 const updateFlag = process.argv.includes('--update');
@@ -108,6 +144,7 @@ if (!branchName) {
 console.log(colorize(`\n🔀 Merging worktree branch: ${branchName}`, 'cyan'));
 console.log(colorize('='.repeat(50), 'cyan'));
 
+(async () => {
 try {
     // Check if branch exists
     const branchExists = execCommand(`git show-ref --verify refs/heads/${branchName}`, { ignoreError: true });
@@ -119,6 +156,49 @@ try {
     const currentBranch = getCurrentBranch();
     console.log(colorize(`📍 Current branch: ${currentBranch}`, 'blue'));
     console.log(colorize(`📦 Source branch: ${branchName}`, 'blue'));
+
+    // Validate parent branch
+    const expectedParent = detectExpectedParentBranch(branchName);
+
+    if (expectedParent) {
+        console.log(colorize(`🎯 Expected parent branch: ${expectedParent}`, 'blue'));
+
+        if (currentBranch !== expectedParent) {
+            console.error(colorize(`\n❌ Error: Branch mismatch detected!`, 'red'));
+            console.error(colorize(`   Worktree '${branchName}' was created from '${expectedParent}'`, 'yellow'));
+            console.error(colorize(`   But you're currently on '${currentBranch}'`, 'yellow'));
+            console.error(colorize(`\n💡 To fix this, checkout the correct branch first:`, 'cyan'));
+            console.error(`   git checkout ${expectedParent}`);
+            console.error(`   npm run worktree:merge ${branchName}`);
+            process.exit(1);
+        }
+
+        console.log(colorize('✅ Parent branch validated', 'green'));
+    } else {
+        // Could not detect parent branch - show warning based on current branch
+        if (!isRootBranch(currentBranch)) {
+            console.log(colorize(`\n⚠️  Warning: Could not detect parent branch for '${branchName}'`, 'yellow'));
+            console.log(colorize(`   Currently on '${currentBranch}' which is not a common root branch`, 'yellow'));
+            console.log(colorize(`   Common root branches: main, master, staging, prod`, 'cyan'));
+            console.log(colorize(`\n   Press Ctrl+C to cancel, or press Enter to continue...`, 'yellow'));
+
+            // Simple pause for user to read and decide
+            const readline = await import('readline');
+            const rl = readline.createInterface({
+                input: process.stdin,
+                output: process.stdout
+            });
+
+            await new Promise(resolve => {
+                rl.question('', () => {
+                    rl.close();
+                    resolve();
+                });
+            });
+        } else {
+            console.log(colorize(`⚠️  Parent branch not detected, but merging to '${currentBranch}'`, 'yellow'));
+        }
+    }
 
     // Check for uncommitted changes
     const status = execCommand('git status --porcelain');
@@ -389,3 +469,4 @@ try {
 
     process.exit(1);
 }
+})();
