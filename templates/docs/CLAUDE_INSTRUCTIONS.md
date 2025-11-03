@@ -55,7 +55,7 @@ Each worktree has a `CLAUDE_INSTRUCTIONS.md` file at its root with:
 
 **Created**: 2024-01-15T10:30:00Z
 **Branch**: feature-name
-**Parent Branch**: staging
+**Parent Branch**: {{PARENT_BRANCH}}
 
 ## Feature/Fix Description
 
@@ -80,7 +80,7 @@ Each worktree has a `CLAUDE_INSTRUCTIONS.md` file at its root with:
 ### 1. Rebase from root branch
 ```bash
 git fetch origin
-git rebase origin/staging  # Use your actual parent branch
+git rebase origin/{{ROOT_BRANCH}}
 ```
 
 ### 2. Commit your changes
@@ -142,7 +142,7 @@ When asked to commit changes in a worktree:
 git fetch origin
 
 # 2. Rebase onto main
-git rebase origin/staging  # Use your actual parent branch
+git rebase origin/{{ROOT_BRANCH}}
 
 # 3. If conflicts, resolve them
 # 4. Run tests
@@ -461,7 +461,7 @@ cd .trees/fix-bug
 
 # 2. Rebase first
 git fetch origin
-git rebase origin/staging  # Use your actual parent branch
+git rebase origin/{{ROOT_BRANCH}}
 
 # 3. Fix bug
 # ... make changes ...

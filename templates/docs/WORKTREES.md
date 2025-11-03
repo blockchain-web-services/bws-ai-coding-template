@@ -253,7 +253,7 @@ Before finishing work in a worktree:
 ```bash
 # Inside worktree
 git fetch origin
-git rebase origin/staging  # Use your parent branch (staging/main/prod)
+git rebase origin/{{ROOT_BRANCH}}
 
 # Run tests again after rebase
 cd test && npm test

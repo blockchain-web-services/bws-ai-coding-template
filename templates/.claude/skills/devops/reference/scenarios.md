@@ -13,9 +13,9 @@ Complete workflow from feature branch to staging deployment:
 # 1. Work in feature branch worktree
 cd .trees/feature-name
 
-# 2. Fetch and rebase on staging
+# 2. Fetch and rebase on parent branch
 git fetch origin
-git rebase origin/staging
+git rebase origin/{{ROOT_BRANCH}}
 
 # 3. Commit changes
 git add .

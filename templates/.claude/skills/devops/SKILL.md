@@ -359,7 +359,7 @@ When asked to deploy:
    - [ ] Check existing stacks: `aws cloudformation list-stacks`
 
 2. **Execute Git Workflow**
-   - [ ] Fetch and rebase: `git fetch origin && git rebase origin/staging`
+   - [ ] Fetch and rebase: `git fetch origin && git rebase origin/{{ROOT_BRANCH}}`
    - [ ] Commit changes: `git commit -m "feat: description"`
    - [ ] Merge with --no-ff: `npm run worktree:merge <branch>`
    - [ ] Push to staging or prod: `git push origin staging` (triggers deployment)
@@ -392,8 +392,8 @@ When asked to deploy:
 # 1. Make changes in worktree
 cd .trees/feature-name
 
-# 2. Commit and merge to staging
-git fetch origin && git rebase origin/staging
+# 2. Commit and merge to parent branch
+git fetch origin && git rebase origin/{{ROOT_BRANCH}}
 git add . && git commit -m "feat: implement feature"
 cd ../.. && npm run worktree:merge feature-name
 
@@ -432,7 +432,7 @@ For more scenarios, see [Common Scenarios](reference/scenarios.md).
 
 ### Git Commands
 - Fetch: `git fetch origin`
-- Rebase: `git rebase origin/staging` or `git rebase origin/prod`
+- Rebase: `git rebase origin/{{ROOT_BRANCH}}`
 - Commit: `git commit -m "type: description"`
 - Merge: `npm run worktree:merge <branch>`
 - Push: `git push origin staging` or `git push origin prod` (triggers deployment)
