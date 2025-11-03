@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//mnt/x/Git/blockchain-web-services/**)",
+      "Read(//mnt/x/Git/**)",
+      "Bash(jobs)",
+      "WebSearch"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
