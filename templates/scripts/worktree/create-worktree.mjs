@@ -391,6 +391,37 @@ npm run worktree:remove ${branchName}
         }
     }
 
+    // Step 5b: Create/Update .gitignore in worktree
+    console.log('\n📝 Configuring worktree .gitignore...');
+    const gitignorePath = join(worktreePath, '.gitignore');
+    const gitignorePatterns = `
+# Worktree-specific files (should not be committed)
+.env.worktree
+.worktree-info.json
+docker-compose.worktree.yml
+CLAUDE_INSTRUCTIONS.md
+CLAUDE.md
+test/.env.worktree
+test/.worktree-info.json
+test/docker-compose.worktree.yml
+
+# Ignore nested .trees/ directory (prevents tracking nested worktrees)
+.trees/
+`;
+
+    let existingGitignore = '';
+    if (existsSync(gitignorePath)) {
+        existingGitignore = readFileSync(gitignorePath, 'utf8');
+    }
+
+    // Only add patterns if not already present
+    if (!existingGitignore.includes('# Worktree-specific files')) {
+        writeFileSync(gitignorePath, existingGitignore + gitignorePatterns);
+        console.log('  ✅ Added worktree patterns to .gitignore');
+    } else {
+        console.log('  ℹ️  Worktree patterns already in .gitignore');
+    }
+
     // Step 6: Copy helper files (if they exist)
     console.log('\n📁 Setting up worktree helpers...');
     const helpersSource = join(rootDir, 'test', 'helpers');
