@@ -127,10 +127,10 @@ The pipeline automatically:
 The webhook only triggers when you push to the configured branch:
 
 ```bash
-# Triggers staging pipeline
+# Example: Triggers staging pipeline
 git push origin staging
 
-# Triggers production pipeline
+# Example: Triggers production pipeline
 git push origin prod
 
 # Does not trigger (feature branch)
@@ -360,12 +360,18 @@ env:
 
 ### Automatic Deployment Flow
 
-1. **Developer pushes to staging branch**:
+1. **Developer pushes to deployment branch** (staging or prod):
 
 ```bash
+# Example for staging environment:
 git checkout staging
 git merge --no-ff feature-name
 git push origin staging
+
+# Example for production environment:
+# git checkout prod
+# git merge --no-ff staging
+# git push origin prod
 ```
 
 2. **GitHub webhook triggers CodePipeline**

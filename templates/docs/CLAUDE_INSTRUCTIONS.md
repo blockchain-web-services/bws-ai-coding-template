@@ -19,7 +19,7 @@ This project uses **git worktrees** for parallel feature development with isolat
 
 ### Key Concepts
 
-1. **Main Worktree**: Located at project root, tracks `main` branch
+1. **Main Worktree**: Located at project root, tracks `{{ROOT_BRANCH}}` branch
 2. **Feature Worktrees**: Located in `.trees/<branch-name>/`, each tracks a feature branch
 3. **Port Allocation**: MD5 hash-based, deterministic per branch name
 4. **Docker Isolation**: Each worktree has unique containers and networks
@@ -98,13 +98,13 @@ npm test
 ### 4. Merge to root (from root directory)
 ```bash
 cd ../..  # Return to root
-git checkout main
+git checkout {{ROOT_BRANCH}}
 git merge --no-ff feature-name
 ```
 
 ### 5. Push to origin
 ```bash
-git push origin main
+git push origin {{ROOT_BRANCH}}
 ```
 
 ### 6. Remove worktree when done

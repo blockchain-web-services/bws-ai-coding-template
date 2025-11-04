@@ -382,8 +382,8 @@ Warning: You are in 'detached HEAD' state
 # Create branch from current state
 git checkout -b recovery-branch
 
-# Or go back to a known branch
-git checkout main
+# Or go back to root branch
+git checkout {{ROOT_BRANCH}}
 ```
 
 ### Merge Conflicts

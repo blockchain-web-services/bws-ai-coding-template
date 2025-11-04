@@ -16,7 +16,7 @@ Best practices for Git workflows when using worktrees in your project.
 
 ### 1. Always Rebase Before Committing
 
-Keep your branch up to date with the main branch before creating commits:
+Keep your branch up to date with the root branch before creating commits:
 
 ```bash
 git fetch origin
@@ -210,17 +210,17 @@ git merge --no-ff feature-name
 ### Manual Merge (if needed)
 
 ```bash
-# 1. Switch to target branch (usually main)
-git checkout main
+# 1. Switch to target branch (root branch)
+git checkout {{ROOT_BRANCH}}
 
 # 2. Pull latest changes
-git pull origin main
+git pull origin {{ROOT_BRANCH}}
 
 # 3. Merge with --no-ff
 git merge --no-ff feature-name
 
 # 4. Push
-git push origin main
+git push origin {{ROOT_BRANCH}}
 ```
 
 ## Branch Naming
@@ -345,9 +345,9 @@ cd test && npm test
 ### Pattern 2: Starting Work
 
 ```bash
-# 1. Ensure main is up to date
+# 1. Ensure root branch is up to date
 cd /project
-git pull origin main
+git pull origin {{ROOT_BRANCH}}
 
 # 2. Create feature worktree
 npm run worktree:create feature-name
@@ -393,7 +393,7 @@ cd ../..
 npm run worktree:merge feature-name
 
 # 5. Push to remote
-git push origin main
+git push origin {{ROOT_BRANCH}}
 
 # 6. Clean up worktree
 npm run worktree:remove feature-name
