@@ -13,7 +13,7 @@ Launches specialized monitoring agents to watch deployments and automatically fi
 This command:
 1. **Detects** what deployment systems are configured (GitHub Actions, AWS CodePipeline)
 2. **Launches** parallel monitoring agents for each system
-3. **Monitors temporal window** - For GitHub Actions, monitors all workflows from the last 10 minutes
+3. **Monitors temporal window** - For GitHub Actions, monitors all workflows from the last 5 minutes
 4. **Tracks cascading workflows** - Waits for and monitors workflows triggered by other workflows (e.g., Test → Deploy chains)
 5. **Waits** for all deployments to complete (even if they take 10+ minutes per workflow)
 6. **Collects** failure logs from any failed deployments
@@ -24,7 +24,7 @@ This command:
 **Key Features:**
 - **Comprehensive monitoring**: Doesn't just check the latest action, monitors ALL recent workflows
 - **Cascade detection**: Automatically detects and waits for workflows triggered by other workflows
-- **Temporal boundary**: Monitors workflows from the last 10 minutes + any future cascading workflows
+- **Temporal boundary**: Monitors workflows from the last 5 minutes + any future cascading workflows
 - **Example**: If a "Test" workflow succeeds and triggers a "Deploy" workflow, both are monitored and reported
 
 ## Workflow
@@ -90,16 +90,16 @@ You are a GitHub Actions monitoring agent. Your job is to monitor ALL GitHub Act
 
 **Branch:** {CURRENT_BRANCH}
 **Repository:** {OWNER}/{REPO}
-**Monitoring Window:** Last 10 minutes + future cascading workflows
+**Monitoring Window:** Last 5 minutes + future cascading workflows
 
 **Your tasks:**
 
 **Step 1: Define Temporal Boundary**
 
-Get the timestamp for "10 minutes ago" to establish the monitoring window:
+Get the timestamp for "5 minutes ago" to establish the monitoring window:
 ```bash
-# Get timestamp for 10 minutes ago (ISO 8601 format)
-MONITORING_START=$(date -u -d '10 minutes ago' '+%Y-%m-%dT%H:%M:%SZ')
+# Get timestamp for 5 minutes ago (ISO 8601 format)
+MONITORING_START=$(date -u -d '5 minutes ago' '+%Y-%m-%dT%H:%M:%SZ')
 echo "Monitoring workflows since: $MONITORING_START"
 ```
 
@@ -107,7 +107,7 @@ echo "Monitoring workflows since: $MONITORING_START"
 
 Get all workflow runs that started within the monitoring window:
 ```bash
-# Get all runs from the last 10 minutes for this branch
+# Get all runs from the last 5 minutes for this branch
 gh run list --branch {CURRENT_BRANCH} --limit 50 \
   --json databaseId,status,conclusion,name,workflowName,createdAt \
   --jq "[.[] | select(.createdAt >= \"$MONITORING_START\")]"
@@ -536,7 +536,7 @@ LOOP until all pipelines pass OR max iterations reached:
     2. Re-launch monitoring agents (same as Step 3)
        - Launch GitHub Actions monitor with NEW monitoring window
          * Window starts from current time (when agent launches)
-         * Agent will monitor all workflows in the last 10 minutes
+         * Agent will monitor all workflows in the last 5 minutes
          * Agent will wait for cascading workflows (Test → Deploy chains)
          * Agent returns results for ALL workflows found in window + cascades
 

@@ -1,6 +1,6 @@
 ---
 name: devops
-description: Executes git commands (fetch, rebase, commit, merge, push) following worktree workflow, then monitors ALL resulting deployments with temporal boundaries and cascade detection. After git push, monitors all workflows from the last 10 minutes including cascading workflows (e.g., Test → Deploy chains). Automatically tracks multiple parallel workflows and waits for triggered workflows. Use /devops-check for comprehensive monitoring with automatic fixing. All deployments are triggered by git push, not manual AWS CLI commands.
+description: Executes git commands (fetch, rebase, commit, merge, push) following worktree workflow, then monitors ALL resulting deployments with temporal boundaries and cascade detection. After git push, monitors all workflows from the last 5 minutes including cascading workflows (e.g., Test → Deploy chains). Automatically tracks multiple parallel workflows and waits for triggered workflows. Use /devops-check for comprehensive monitoring with automatic fixing. All deployments are triggered by git push, not manual AWS CLI commands.
 ---
 
 # DevOps
@@ -223,7 +223,7 @@ Immediately after push, monitor **ALL workflows** including cascading deployment
 ```
 
 The `/devops-check` command will:
-- Monitor all workflows from the last 10 minutes (temporal boundary)
+- Monitor all workflows from the last 5 minutes (temporal boundary)
 - Wait for cascading workflows (e.g., Test → Deploy chains)
 - Track multiple parallel workflows (Test + Lint simultaneously)
 - Automatically fix failures and re-monitor
@@ -233,8 +233,8 @@ The `/devops-check` command will:
 
 **GitHub Actions - Monitor ALL recent workflows:**
 ```bash
-# Define temporal boundary - last 10 minutes
-MONITORING_START=$(date -u -d '10 minutes ago' '+%Y-%m-%dT%H:%M:%SZ')
+# Define temporal boundary - last 5 minutes
+MONITORING_START=$(date -u -d '5 minutes ago' '+%Y-%m-%dT%H:%M:%SZ')
 CURRENT_BRANCH=$(git branch --show-current)
 
 # Get all recent workflow runs
@@ -304,7 +304,7 @@ This handles all monitoring automatically including temporal boundaries, cascade
 ```bash
 # Get current branch and define temporal boundary
 CURRENT_BRANCH=$(git branch --show-current)
-MONITORING_START=$(date -u -d '10 minutes ago' '+%Y-%m-%dT%H:%M:%SZ')
+MONITORING_START=$(date -u -d '5 minutes ago' '+%Y-%m-%dT%H:%M:%SZ')
 
 # List ALL recent runs within the monitoring window
 gh run list --branch $CURRENT_BRANCH --limit 50 --repo {{GITHUB_USERNAME}}/{{REPOSITORY_NAME}} \
@@ -323,7 +323,7 @@ gh run list --branch $CURRENT_BRANCH --limit 20 --repo {{GITHUB_USERNAME}}/{{REP
 ```
 
 **Key principles:**
-- **Temporal boundary**: Monitor workflows from last 10 minutes, not just "latest"
+- **Temporal boundary**: Monitor workflows from last 5 minutes, not just "latest"
 - **Multiple workflows**: A push can trigger multiple parallel workflows
 - **Cascade detection**: Successful workflows may trigger additional workflows
 - **Wait and recheck**: After workflows complete, wait 30s and check for new ones
@@ -433,7 +433,7 @@ When asked to deploy:
 
 3. **Monitor Deployment**
    - [ ] **Recommended:** Use `/devops-check` for comprehensive monitoring
-   - [ ] Or manually: Monitor ALL workflows with temporal boundaries (last 10 mins)
+   - [ ] Or manually: Monitor ALL workflows with temporal boundaries (last 5 mins)
    - [ ] Check for cascading workflows (Test → Deploy chains)
    - [ ] Monitor CloudFormation events (if applicable)
    - [ ] Verify all workflows in chain succeed
@@ -472,7 +472,7 @@ git push origin staging
 /devops-check
 
 # This will:
-# - Monitor all workflows from last 10 minutes
+# - Monitor all workflows from last 5 minutes
 # - Wait for cascading workflows (e.g., Test → Deploy)
 # - Track multiple parallel workflows
 # - Automatically fix failures and re-monitor
