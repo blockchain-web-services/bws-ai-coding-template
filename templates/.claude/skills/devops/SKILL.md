@@ -1,6 +1,6 @@
 ---
 name: devops
-description: Executes git commands (fetch, rebase, commit, merge, push) following worktree workflow, then monitors resulting deployments. After git push to staging or prod branches, automatically checks GitHub Actions workflows and CloudFormation deployment logs. All deployments are triggered by git push, not manual AWS CLI commands. Use when performing git operations, pushing code, merging worktrees, or checking deployment status.
+description: Executes git commands (fetch, rebase, commit, merge, push) following worktree workflow, then monitors ALL resulting deployments with temporal boundaries and cascade detection. After git push, monitors all workflows from the last 10 minutes including cascading workflows (e.g., Test → Deploy chains). Automatically tracks multiple parallel workflows and waits for triggered workflows. Use /devops-check for comprehensive monitoring with automatic fixing. All deployments are triggered by git push, not manual AWS CLI commands.
 ---
 
 # DevOps
@@ -212,17 +212,55 @@ git push origin prod     # Push to prod branch to deploy to production environme
 
 ### Step 5: Monitor Deployment
 
-Immediately after push, monitor deployments:
+Immediately after push, monitor **ALL workflows** including cascading deployments.
 
+**IMPORTANT MONITORING STRATEGY:**
+
+**For comprehensive monitoring, use the `/devops-check` command:**
 ```bash
-# Watch GitHub Actions
-gh run watch --repo {{GITHUB_USERNAME}}/{{REPOSITORY_NAME}}
-
-# View deployment logs
-gh run view <run-id> --log
+# This automatically monitors ALL workflows with temporal boundaries and cascade detection
+/devops-check
 ```
 
-For CloudFormation deployments triggered by pipeline:
+The `/devops-check` command will:
+- Monitor all workflows from the last 10 minutes (temporal boundary)
+- Wait for cascading workflows (e.g., Test → Deploy chains)
+- Track multiple parallel workflows (Test + Lint simultaneously)
+- Automatically fix failures and re-monitor
+- Iterate up to 5 times until all pipelines pass
+
+**For manual monitoring** (if not using `/devops-check`):
+
+**GitHub Actions - Monitor ALL recent workflows:**
+```bash
+# Define temporal boundary - last 10 minutes
+MONITORING_START=$(date -u -d '10 minutes ago' '+%Y-%m-%dT%H:%M:%SZ')
+CURRENT_BRANCH=$(git branch --show-current)
+
+# Get all recent workflow runs
+gh run list --branch $CURRENT_BRANCH --limit 50 \
+  --json databaseId,status,conclusion,name,workflowName,createdAt \
+  --jq "[.[] | select(.createdAt >= \"$MONITORING_START\")]"
+
+# Monitor each workflow found
+for RUN_ID in {extracted_run_ids}; do
+    echo "Monitoring workflow run: $RUN_ID"
+    gh run watch $RUN_ID
+done
+
+# After workflows complete, check for cascading workflows (wait 30-60 seconds)
+sleep 30
+gh run list --branch $CURRENT_BRANCH --limit 20 \
+  --json databaseId,status,conclusion,name,workflowName,createdAt \
+  --jq "[.[] | select(.createdAt >= \"$MONITORING_START\")]"
+```
+
+**Why monitor ALL workflows:**
+- Multiple workflows may trigger in parallel (Test + Lint)
+- Successful workflows may trigger additional workflows (Test → Deploy)
+- Need to ensure entire deployment chain succeeds
+
+**CloudFormation deployments:**
 ```bash
 # First, discover stack names from the pipeline
 # Use --profile staging for staging deployments, --profile prod for production
@@ -252,14 +290,43 @@ npm run worktree:remove {{BRANCH_NAME}}
 
 ### After Git Push
 
-**Primary action:** Check GitHub Actions workflows
+**RECOMMENDED:** Use `/devops-check` command for comprehensive monitoring:
 ```bash
-# List recent runs
-gh run list --limit 5 --repo {{GITHUB_USERNAME}}/{{REPOSITORY_NAME}}
-
-# Watch latest run
-gh run watch --repo {{GITHUB_USERNAME}}/{{REPOSITORY_NAME}}
+/devops-check
 ```
+
+This handles all monitoring automatically including temporal boundaries, cascade detection, and automatic fixing.
+
+### Manual Monitoring (Alternative)
+
+**Monitor ALL GitHub Actions workflows** (not just the latest):
+
+```bash
+# Get current branch and define temporal boundary
+CURRENT_BRANCH=$(git branch --show-current)
+MONITORING_START=$(date -u -d '10 minutes ago' '+%Y-%m-%dT%H:%M:%SZ')
+
+# List ALL recent runs within the monitoring window
+gh run list --branch $CURRENT_BRANCH --limit 50 --repo {{GITHUB_USERNAME}}/{{REPOSITORY_NAME}} \
+  --json databaseId,status,conclusion,name,workflowName,createdAt \
+  --jq "[.[] | select(.createdAt >= \"$MONITORING_START\")]"
+
+# Monitor each workflow (extract IDs from above)
+for RUN_ID in {run_ids}; do
+    gh run watch $RUN_ID --repo {{GITHUB_USERNAME}}/{{REPOSITORY_NAME}}
+done
+
+# Check for cascading workflows after 30 seconds
+sleep 30
+gh run list --branch $CURRENT_BRANCH --limit 20 --repo {{GITHUB_USERNAME}}/{{REPOSITORY_NAME}} \
+  --json databaseId,status,conclusion,name,workflowName,createdAt
+```
+
+**Key principles:**
+- **Temporal boundary**: Monitor workflows from last 10 minutes, not just "latest"
+- **Multiple workflows**: A push can trigger multiple parallel workflows
+- **Cascade detection**: Successful workflows may trigger additional workflows
+- **Wait and recheck**: After workflows complete, wait 30s and check for new ones
 
 **If workflow deploys CloudFormation:** Monitor stack events
 ```bash
@@ -365,10 +432,11 @@ When asked to deploy:
    - [ ] Push to staging or prod: `git push origin staging` (triggers deployment)
 
 3. **Monitor Deployment**
-   - [ ] Watch GitHub Actions: `gh run watch`
-   - [ ] Check workflow logs: `gh run view <run-id> --log`
+   - [ ] **Recommended:** Use `/devops-check` for comprehensive monitoring
+   - [ ] Or manually: Monitor ALL workflows with temporal boundaries (last 10 mins)
+   - [ ] Check for cascading workflows (Test → Deploy chains)
    - [ ] Monitor CloudFormation events (if applicable)
-   - [ ] Verify stack outputs
+   - [ ] Verify all workflows in chain succeed
 
 4. **Handle Failures**
    - [ ] Check failed runs: `gh run list --status=failure`
@@ -400,14 +468,15 @@ cd ../.. && npm run worktree:merge feature-name
 # 3. Push to staging (triggers deployment)
 git push origin staging
 
-# 4. Monitor deployment
-gh run watch
+# 4. Monitor ALL workflows with cascade detection
+/devops-check
 
-# Discover and monitor CloudFormation stack
-aws codepipeline get-pipeline \
-  --name devops-{{REPOSITORY_NAME}}-staging \
-  --profile staging --region us-east-1 \
-  --query 'pipeline.stages[*].actions[?actionTypeId.provider==`CloudFormation`].configuration.StackName'
+# This will:
+# - Monitor all workflows from last 10 minutes
+# - Wait for cascading workflows (e.g., Test → Deploy)
+# - Track multiple parallel workflows
+# - Automatically fix failures and re-monitor
+# - Iterate until all pipelines pass
 ```
 
 ### Scenario 2: Investigate Failed Deployment
