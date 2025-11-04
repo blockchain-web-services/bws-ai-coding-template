@@ -13,11 +13,19 @@ Launches specialized monitoring agents to watch deployments and automatically fi
 This command:
 1. **Detects** what deployment systems are configured (GitHub Actions, AWS CodePipeline)
 2. **Launches** parallel monitoring agents for each system
-3. **Waits** for all deployments to complete (even if they take 10+ minutes)
-4. **Collects** failure logs from any failed deployments
-5. **Fixes** issues automatically based on the logs
-6. **Re-monitors** automatically after applying fixes
-7. **Iterates** until all pipelines pass (up to 5 attempts)
+3. **Monitors temporal window** - For GitHub Actions, monitors all workflows from the last 10 minutes
+4. **Tracks cascading workflows** - Waits for and monitors workflows triggered by other workflows (e.g., Test → Deploy chains)
+5. **Waits** for all deployments to complete (even if they take 10+ minutes per workflow)
+6. **Collects** failure logs from any failed deployments
+7. **Fixes** issues automatically based on the logs
+8. **Re-monitors** automatically after applying fixes with a fresh monitoring window
+9. **Iterates** until all pipelines pass (up to 5 attempts)
+
+**Key Features:**
+- **Comprehensive monitoring**: Doesn't just check the latest action, monitors ALL recent workflows
+- **Cascade detection**: Automatically detects and waits for workflows triggered by other workflows
+- **Temporal boundary**: Monitors workflows from the last 10 minutes + any future cascading workflows
+- **Example**: If a "Test" workflow succeeds and triggers a "Deploy" workflow, both are monitored and reported
 
 ## Workflow
 
@@ -78,49 +86,163 @@ Create monitoring agents based on what's configured:
 **Task agent with the following prompt:**
 
 ```
-You are a GitHub Actions monitoring agent. Your job is to monitor the latest GitHub Actions workflow run and wait for it to complete.
+You are a GitHub Actions monitoring agent. Your job is to monitor ALL GitHub Actions workflow runs within a time window and wait for cascading workflows.
 
 **Branch:** {CURRENT_BRANCH}
 **Repository:** {OWNER}/{REPO}
+**Monitoring Window:** Last 10 minutes + future cascading workflows
 
 **Your tasks:**
 
-1. Get the latest workflow run for this branch:
-   ```bash
-   gh run list --branch {CURRENT_BRANCH} --limit 1 --json databaseId,status,conclusion,name,workflowName
-   ```
+**Step 1: Define Temporal Boundary**
 
-2. Extract the run ID from the output
+Get the timestamp for "10 minutes ago" to establish the monitoring window:
+```bash
+# Get timestamp for 10 minutes ago (ISO 8601 format)
+MONITORING_START=$(date -u -d '10 minutes ago' '+%Y-%m-%dT%H:%M:%SZ')
+echo "Monitoring workflows since: $MONITORING_START"
+```
 
-3. Monitor the workflow run until it completes:
-   ```bash
-   # Watch the run (this command waits for completion)
-   gh run watch {RUN_ID}
-   ```
+**Step 2: Get ALL Recent Workflow Runs**
 
-   **IMPORTANT:** This command may take 10+ minutes. Wait for it to complete.
+Get all workflow runs that started within the monitoring window:
+```bash
+# Get all runs from the last 10 minutes for this branch
+gh run list --branch {CURRENT_BRANCH} --limit 50 \
+  --json databaseId,status,conclusion,name,workflowName,createdAt \
+  --jq "[.[] | select(.createdAt >= \"$MONITORING_START\")]"
+```
 
-4. After completion, get the final status:
-   ```bash
-   gh run view {RUN_ID} --json conclusion,status,jobs
-   ```
+**IMPORTANT:** This may return multiple workflows:
+- Initial workflow (e.g., "Test")
+- Cascading workflows (e.g., "Deploy" triggered by "Test" success)
+- Re-runs or multiple pushes
 
-5. If the conclusion is "failure", get the detailed logs:
-   ```bash
-   gh run view {RUN_ID} --log-failed
-   ```
+**Step 3: Monitor All Workflows Until Completion**
 
-6. **Return to main thread:**
-   - If **successful**: Return "GitHub Actions: SUCCESS"
-   - If **failed**: Return "GitHub Actions: FAILED" followed by the complete failure logs
+For each workflow run found:
+1. Track its status
+2. Wait for completion
+3. After completion, check if new workflows were triggered
 
-   Include:
-   - Which jobs failed
-   - Error messages from logs
-   - File paths mentioned in errors
-   - Stack traces if present
+```bash
+# For each run ID from Step 2:
+for RUN_ID in {RUN_IDS}; do
+    echo "Monitoring workflow run: $RUN_ID"
 
-**Do not attempt to fix issues yourself. Just collect and return the information.**
+    # Watch the run (this command waits for completion)
+    gh run watch $RUN_ID
+
+    echo "Workflow $RUN_ID completed"
+done
+```
+
+**IMPORTANT:** This monitoring may take 10+ minutes per workflow.
+
+**Step 4: Check for Newly Triggered Workflows**
+
+After workflows complete, check if any new workflows were triggered:
+```bash
+# Wait 30 seconds for any cascade triggers
+sleep 30
+
+# Get current timestamp
+CURRENT_TIME=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
+
+# Check for new workflows created after our last check
+gh run list --branch {CURRENT_BRANCH} --limit 20 \
+  --json databaseId,status,conclusion,name,workflowName,createdAt \
+  --jq "[.[] | select(.createdAt >= \"$LAST_CHECK_TIME\")]"
+```
+
+**If new workflows found:**
+- Add them to monitoring list
+- Repeat Step 3 for new workflows
+- Continue checking for cascades until no new workflows appear for 1 minute
+
+**Step 5: Collect Results from All Workflows**
+
+After all workflows complete and no new ones are triggered:
+
+```bash
+# For each monitored run:
+for RUN_ID in {ALL_RUN_IDS}; do
+    echo "Getting results for run: $RUN_ID"
+
+    # Get final status
+    gh run view $RUN_ID --json conclusion,status,jobs,name,workflowName
+
+    # If failed, get detailed logs
+    if [ "$CONCLUSION" == "failure" ]; then
+        gh run view $RUN_ID --log-failed
+    fi
+done
+```
+
+**Step 6: Return to Main Thread**
+
+Return a comprehensive report:
+
+```
+GitHub Actions Summary:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Monitoring Window: {MONITORING_START} to {CURRENT_TIME}
+Total Workflows Monitored: {COUNT}
+
+Workflow Results:
+1. {WORKFLOW_NAME} (Run #{RUN_ID}): {SUCCESS/FAILURE}
+2. {WORKFLOW_NAME} (Run #{RUN_ID}): {SUCCESS/FAILURE}
+   → Triggered: {CASCADED_WORKFLOW_NAME} (Run #{RUN_ID}): {SUCCESS/FAILURE}
+
+Overall Status: {SUCCESS if all passed, FAILED if any failed}
+
+{If any failures, include:}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FAILURE LOGS:
+
+Workflow: {WORKFLOW_NAME}
+Run ID: {RUN_ID}
+Failed Jobs:
+  - {JOB_NAME}:
+      {Error messages}
+      {File paths mentioned}
+      {Stack traces}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+**Examples of Cascade Scenarios:**
+
+**Scenario 1: Test → Deploy Chain**
+```
+1. Push triggers "CI Test" workflow
+2. Monitor "CI Test" (5 minutes)
+3. "CI Test" succeeds → triggers "Deploy to Staging"
+4. Detect new "Deploy to Staging" workflow
+5. Monitor "Deploy to Staging" (8 minutes)
+6. Both complete → return combined results
+```
+
+**Scenario 2: Multiple Independent Workflows**
+```
+1. Push triggers both "Test" and "Lint" workflows (parallel)
+2. Monitor both simultaneously
+3. "Test" succeeds → triggers "Deploy"
+4. "Lint" succeeds (no cascade)
+5. Monitor "Deploy" until complete
+6. All three workflows complete → return combined results
+```
+
+**Scenario 3: Failed Test (No Cascade)**
+```
+1. Push triggers "Test" workflow
+2. Monitor "Test"
+3. "Test" fails → no "Deploy" triggered
+4. Wait 1 minute to confirm no cascade
+5. Return failure with logs
+```
+
+**Do not attempt to fix issues yourself. Just collect and return the information for ALL workflows in the monitoring window.**
 ```
 
 #### Agent 2: CodePipeline Monitor (if AWS configured)
@@ -237,13 +359,75 @@ After launching agents, Claude will receive their results back. Each agent will 
 
 **Processing agent results:**
 
-1. Display status for each system:
+**GitHub Actions results will include:**
+- Monitoring window (start/end time)
+- List of ALL workflows monitored (initial + cascading)
+- Success/failure status for each workflow
+- Indication of which workflows triggered which (cascade relationships)
+- Detailed failure logs if any workflow failed
+
+**Example GitHub Actions result:**
+```
+GitHub Actions Summary:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Monitoring Window: 2024-01-15T14:20:00Z to 2024-01-15T14:35:00Z
+Total Workflows Monitored: 3
+
+Workflow Results:
+1. CI Tests (Run #12345): SUCCESS (5m 30s)
+   → Triggered: Deploy to Staging (Run #12346): SUCCESS (8m 15s)
+2. Lint Checks (Run #12347): SUCCESS (2m 10s)
+
+Overall Status: SUCCESS
+```
+
+**Example with failure:**
+```
+GitHub Actions Summary:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Monitoring Window: 2024-01-15T14:20:00Z to 2024-01-15T14:35:00Z
+Total Workflows Monitored: 2
+
+Workflow Results:
+1. CI Tests (Run #12345): FAILED (3m 45s)
+   (No cascading workflows triggered due to failure)
+2. Lint Checks (Run #12347): SUCCESS (2m 10s)
+
+Overall Status: FAILED
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FAILURE LOGS:
+
+Workflow: CI Tests
+Run ID: 12345
+Failed Jobs:
+  - test-backend:
+      Error: Test suite failed with 2 failures
+      File: test/api/auth.test.js:45
+      TypeError: Cannot read property 'token' of undefined
+```
+
+**Display comprehensive status:**
+
+1. For GitHub Actions, show status for each workflow:
    ```
-   ✅ GitHub Actions: SUCCESS
-   ❌ CodePipeline: FAILED
+   📊 GitHub Actions Results:
+      ✅ CI Tests (Run #12345) - 5m 30s
+      ✅ Deploy to Staging (Run #12346) - 8m 15s [triggered by CI Tests]
+      ✅ Lint Checks (Run #12347) - 2m 10s
+
+   Overall: ✅ SUCCESS
    ```
 
-2. If any failures detected, proceed to fixing
+2. For CodePipeline:
+   ```
+   📊 CodePipeline Results:
+      ❌ FAILED
+   ```
+
+3. If any failures detected in any workflow or pipeline, proceed to fixing
 
 ### Step 6: Analyze and Fix Failures
 
@@ -350,11 +534,18 @@ LOOP until all pipelines pass OR max iterations reached:
        "🔄 Iteration {ITERATION}/{MAX_ITERATIONS}: Monitoring deployments..."
 
     2. Re-launch monitoring agents (same as Step 3)
-       - Launch GitHub Actions monitor
-       - Launch CodePipeline monitor (if configured)
-       - Wait for both to complete
+       - Launch GitHub Actions monitor with NEW monitoring window
+         * Window starts from current time (when agent launches)
+         * Agent will monitor all workflows in the last 10 minutes
+         * Agent will wait for cascading workflows (Test → Deploy chains)
+         * Agent returns results for ALL workflows found in window + cascades
 
-    3. Process results:
+       - Launch CodePipeline monitor (if configured)
+         * Monitors the latest execution triggered by the push
+
+       - Wait for both agents to complete
+
+    3. Process results (including all workflows from monitoring window):
        IF all pipelines SUCCESS:
            ✅ All deployments successful!
            BREAK loop
@@ -389,17 +580,41 @@ LOOP until all pipelines pass OR max iterations reached:
 2. **Show progress during iterations:**
    ```
    🔄 Iteration 1/5: Monitoring deployments...
-   ⏳ Waiting for GitHub Actions... (3m 45s)
-   ⏳ Waiting for CodePipeline... (8m 12s)
 
-   📊 Results:
-     ❌ GitHub Actions: FAILED
-     ✅ CodePipeline: SUCCESS
+   📊 GitHub Actions Agent Results:
+      Monitoring Window: 2024-01-15T14:20:00Z to 2024-01-15T14:35:00Z
+      Workflows Monitored: 3
 
-   🔧 Applying fixes for GitHub Actions failure...
-   📝 Committed and pushed
+      ✅ CI Tests (Run #12345) - 5m 30s
+      ❌ Deploy to Staging (Run #12346) - FAILED - 2m 15s [triggered by CI Tests]
+      ✅ Lint Checks (Run #12347) - 2m 10s
+
+      Overall: ❌ FAILED (1 of 3 workflows failed)
+
+   📊 CodePipeline Results:
+      ✅ SUCCESS - All stages passed
+
+   🔧 Analyzing failures...
+      - Deploy to Staging failed: Missing environment variable API_KEY
+
+   🔧 Applying fixes...
+      - Adding API_KEY to GitHub Actions secrets configuration
+
+   📝 Committed and pushed fixes
 
    🔄 Iteration 2/5: Re-monitoring after fixes...
+
+   📊 GitHub Actions Agent Results:
+      Monitoring Window: 2024-01-15T14:36:00Z to 2024-01-15T14:48:00Z
+      Workflows Monitored: 3
+
+      ✅ CI Tests (Run #12348) - 5m 25s
+      ✅ Deploy to Staging (Run #12349) - 8m 05s [triggered by CI Tests]
+      ✅ Lint Checks (Run #12350) - 2m 08s
+
+      Overall: ✅ SUCCESS (all workflows passed)
+
+   ✅ All deployments successful!
    ```
 
 3. **Display final summary after loop exits:**
