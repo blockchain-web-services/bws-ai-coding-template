@@ -8,6 +8,12 @@ model: sonnet
 
 Execute the complete worktree merge workflow. This command automates the process of merging a worktree branch into its parent branch, pushing to origin, and monitoring the resulting deployment.
 
+**Key Features:**
+- ✅ Auto-stash uncommitted changes during rebase (with `--update` flag)
+- ✅ Smart rebase skip if branch is already up-to-date
+- ✅ Automatic deployment monitoring after merge
+- ✅ Preserves important configuration files
+
 ## Workflow Steps
 
 ### 1. Detect Current Location and Branch
@@ -38,10 +44,29 @@ Common parent branches: `staging`, `prod`, `main`, `master`
 
 ### 3. Fetch and Rebase in Worktree
 
+**Option A: Use --update flag (RECOMMENDED - handles uncommitted changes automatically)**
+
+Skip to step 5 and use the `--update` flag. The merge script will:
+- Auto-stash any uncommitted changes
+- Rebase the worktree branch onto parent
+- Auto-restore stashed changes after rebase
+- Skip rebase entirely if already up-to-date
+
+**Option B: Manual rebase (if you prefer manual control)**
+
 Navigate to the worktree and update it against the parent branch:
 
 ```bash
 cd .trees/{BRANCH_NAME}
+
+# Check for uncommitted changes first
+if [[ -n $(git status --porcelain) ]]; then
+  echo "⚠️  You have uncommitted changes. Please commit or stash them first:"
+  echo "  Option 1: git add . && git commit -m 'your message'"
+  echo "  Option 2: git stash"
+  exit 1
+fi
+
 git fetch origin
 git rebase origin/{PARENT_BRANCH}
 ```

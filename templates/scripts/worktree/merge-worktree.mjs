@@ -226,19 +226,60 @@ try {
 
             // Save current branch
             const originalBranch = getCurrentBranch();
+            let stashCreated = false;
 
             try {
                 // Switch to the worktree branch
                 execCommand(`git checkout ${branchName}`);
 
-                // Rebase onto current branch
-                const rebaseResult = execCommand(`git rebase ${originalBranch}`, { ignoreError: true });
+                // Check if worktree branch has uncommitted changes
+                const worktreeStatus = execCommand('git status --porcelain');
 
-                if (rebaseResult === null) {
-                    console.error(colorize('\n❌ Rebase failed. Please resolve conflicts manually', 'red'));
-                    execCommand(`git rebase --abort`, { ignoreError: true });
-                    execCommand(`git checkout ${originalBranch}`);
-                    process.exit(1);
+                if (worktreeStatus) {
+                    console.log(colorize('  ℹ️  Uncommitted changes detected - auto-stashing...', 'yellow'));
+                    execCommand('git stash push -m "Auto-stash for worktree merge"');
+                    stashCreated = true;
+                    console.log(colorize('  ✓ Changes stashed', 'gray'));
+                }
+
+                // Check if rebase is actually needed (branch might already be ancestor)
+                const needsRebase = execCommand(`git merge-base --is-ancestor ${branchName} ${originalBranch}`, { ignoreError: true });
+
+                if (needsRebase === null) {
+                    // Branch is already an ancestor - no rebase needed
+                    console.log(colorize('  ✓ Branch is already up-to-date with parent (no rebase needed)', 'gray'));
+                } else {
+                    // Rebase onto current branch
+                    console.log(colorize('  → Rebasing onto parent branch...', 'gray'));
+                    const rebaseResult = execCommand(`git rebase ${originalBranch}`, { ignoreError: true });
+
+                    if (rebaseResult === null) {
+                        console.error(colorize('\n❌ Rebase failed. Please resolve conflicts manually:', 'red'));
+                        console.error(colorize('  1. Fix conflicts in the files', 'yellow'));
+                        console.error(colorize('  2. git add <resolved-files>', 'yellow'));
+                        console.error(colorize('  3. git rebase --continue', 'yellow'));
+                        console.error(colorize('  4. Re-run the merge command', 'yellow'));
+                        execCommand(`git rebase --abort`, { ignoreError: true });
+                        if (stashCreated) {
+                            execCommand(`git stash pop`, { ignoreError: true });
+                        }
+                        execCommand(`git checkout ${originalBranch}`);
+                        process.exit(1);
+                    }
+                }
+
+                // Pop stash if we created one
+                if (stashCreated) {
+                    console.log(colorize('  → Restoring stashed changes...', 'gray'));
+                    const stashPopResult = execCommand('git stash pop', { ignoreError: true });
+
+                    if (stashPopResult === null) {
+                        console.error(colorize('\n⚠️  Warning: Stash pop had conflicts', 'yellow'));
+                        console.error(colorize('  Your changes are still in the stash.', 'yellow'));
+                        console.error(colorize('  After resolving conflicts, run: git stash drop', 'yellow'));
+                    } else {
+                        console.log(colorize('  ✓ Changes restored', 'gray'));
+                    }
                 }
 
                 // Switch back to original branch
@@ -247,6 +288,9 @@ try {
                 console.log(colorize('✅ Branch updated successfully', 'green'));
             } catch (error) {
                 console.error(colorize('\n❌ Failed to update branch: ' + error.message, 'red'));
+                if (stashCreated) {
+                    console.log(colorize('  ℹ️  Your changes are in the stash. Run: git stash pop', 'yellow'));
+                }
                 execCommand(`git checkout ${originalBranch}`, { ignoreError: true });
                 process.exit(1);
             }
