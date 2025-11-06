@@ -4,7 +4,10 @@
       "Read(//mnt/x/Git/blockchain-web-services/**)",
       "Read(//mnt/x/Git/**)",
       "Bash(jobs)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(git worktree:*)",
+      "Bash(git -C /tmp status)",
+      "Bash(git help:*)"
     ],
     "deny": [],
     "ask": []
