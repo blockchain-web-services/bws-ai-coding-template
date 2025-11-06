@@ -162,8 +162,10 @@ Use conventional commits: `feat:`, `fix:`, `refactor:`, `chore:`, `docs:`
 
 ```bash
 cd ../..  # Return to project root (if inside worktree)
-npm run worktree:merge {{BRANCH_NAME}} [--update] [--force] [--no-push]
+npm run worktree:merge {{BRANCH_NAME}} -- [--update] [--force] [--no-push]
 ```
+
+**Note:** The `--` separator is required to pass flags through npm to the script.
 
 **What the merge script does:**
 1. **Validates parent branch** - Ensures you're on the correct branch before merging
@@ -177,7 +179,7 @@ npm run worktree:merge {{BRANCH_NAME}} [--update] [--force] [--no-push]
    - `test/.env` - Main environment config
    - `test/package.json` - Main test dependencies
    - `.gitignore` - Worktree patterns
-5. **Pushes automatically** - By default, pushes to origin after merge (unless `--no-push` is used)
+5. **Pushes automatically** - By default, pushes to origin after merge (unless `-- --no-push` is used)
 
 **Script flags:**
 - `--update` - Automatically rebase the worktree branch before merging (recommended)
@@ -187,13 +189,16 @@ npm run worktree:merge {{BRANCH_NAME}} [--update] [--force] [--no-push]
 **Examples:**
 ```bash
 # Recommended: Auto-rebase and merge
-npm run worktree:merge feature-auth --update
+npm run worktree:merge feature-auth -- --update
 
 # Merge without auto-push (manual push later)
-npm run worktree:merge feature-auth --no-push
+npm run worktree:merge feature-auth -- --no-push
 
 # Force merge outdated branch (not recommended)
-npm run worktree:merge feature-auth --force
+npm run worktree:merge feature-auth -- --force
+
+# Combine multiple flags
+npm run worktree:merge feature-auth -- --update --no-push
 ```
 
 ### Step 4: Push to Origin (Triggers Deployment)

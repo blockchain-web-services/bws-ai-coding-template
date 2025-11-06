@@ -2,7 +2,8 @@
 
 /**
  * Merge a worktree branch into the current branch while preserving worktree-specific files
- * Usage: npm run worktree:merge <branch-name> [--update] [--force] [--no-push]
+ * Usage: npm run worktree:merge <branch-name> -- [--update] [--force] [--no-push]
+ * Note: The -- separator is required to pass flags through npm to the script
  */
 
 import { execSync } from 'child_process';
@@ -134,10 +135,17 @@ const noPushFlag = process.argv.includes('--no-push');
 
 if (!branchName) {
     console.error(colorize('❌ Error: Please provide a branch name', 'red'));
-    console.error('Usage: npm run worktree:merge <branch-name> [--update] [--force] [--no-push]');
+    console.error('Usage: npm run worktree:merge <branch-name> -- [--update] [--force] [--no-push]');
+    console.error('Note: The -- separator is required to pass flags through npm');
+    console.error('');
+    console.error('Flags:');
     console.error('  --update   Automatically rebase the branch before merging');
     console.error('  --force    Merge even if branch is outdated');
     console.error('  --no-push  Skip automatic push to origin after merge');
+    console.error('');
+    console.error('Examples:');
+    console.error('  npm run worktree:merge feature-auth -- --update');
+    console.error('  npm run worktree:merge feature-auth -- --no-push');
     process.exit(1);
 }
 

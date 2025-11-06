@@ -23,6 +23,11 @@ npm run worktree:list
 # Merge worktree back to main branch
 npm run worktree:merge feature-name
 
+# Merge with flags (note the -- separator for npm flag passing)
+npm run worktree:merge feature-name -- --update      # Auto-rebase before merge
+npm run worktree:merge feature-name -- --no-push     # Skip auto-push
+npm run worktree:merge feature-name -- --update --no-push  # Combine flags
+
 # Remove a worktree
 npm run worktree:remove feature-name
 ```
