@@ -252,6 +252,14 @@ npm run worktree:merge branch -- --force      # Force merge even if outdated
 npm run worktree:merge branch -- --update --no-push  # Combine flags
 ```
 
+**Auto-commit Uncommitted Changes:**
+If you have uncommitted changes in the worktree when running merge, the script will:
+1. Detect the uncommitted changes
+2. Automatically commit them with message: `chore: Auto-commit before merge to {branch}`
+3. Continue with the merge (all changes included)
+
+This ensures no work is lost during the merge process. The auto-commit message clearly indicates it was automated.
+
 **Parent Branch Validation:**
 The merge script validates you're on the correct parent branch. This prevents accidentally merging to the wrong branch.
 

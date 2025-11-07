@@ -208,12 +208,49 @@ try {
         }
     }
 
-    // Check for uncommitted changes
+    // Check for uncommitted changes in parent branch
     const status = execCommand('git status --porcelain');
     if (status) {
-        console.error(colorize('\n❌ Error: You have uncommitted changes', 'red'));
+        console.error(colorize('\n❌ Error: You have uncommitted changes in parent branch', 'red'));
         console.error('Please commit or stash your changes before merging');
         process.exit(1);
+    }
+
+    // Check for uncommitted changes in the worktree branch
+    const worktreePath = join(rootDir, '.trees', branchName);
+
+    if (existsSync(worktreePath)) {
+        const worktreeStatus = execCommand(`git -C "${worktreePath}" status --porcelain`, { ignoreError: true });
+
+        if (worktreeStatus) {
+            console.log(colorize('\n📝 Uncommitted changes detected in worktree', 'yellow'));
+            console.log(colorize('   Auto-committing changes before merge...', 'yellow'));
+
+            try {
+                // Add all changes
+                execCommand(`git -C "${worktreePath}" add -A`);
+
+                // Create commit with descriptive message
+                const commitMessage = `chore: Auto-commit before merge to ${currentBranch}
+
+This commit was automatically created by the worktree-merge script
+because uncommitted changes were detected in the worktree branch.
+
+Changes committed automatically to ensure they are included in the merge.`;
+
+                execCommand(`git -C "${worktreePath}" commit -m "${commitMessage}"`);
+
+                console.log(colorize('   ✓ Changes committed successfully', 'green'));
+            } catch (error) {
+                console.error(colorize('\n❌ Error: Failed to auto-commit changes', 'red'));
+                console.error(colorize(`   ${error.message}`, 'yellow'));
+                console.error(colorize('\n💡 Please commit changes manually:', 'cyan'));
+                console.error(`   cd ${worktreePath}`);
+                console.error('   git add <files>');
+                console.error('   git commit -m "your message"');
+                process.exit(1);
+            }
+        }
     }
 
     // Check if branch is up to date with current branch

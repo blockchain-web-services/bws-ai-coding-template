@@ -180,6 +180,7 @@ npm run worktree:merge {{BRANCH_NAME}} -- [--update] [--force] [--no-push]
    - `test/package.json` - Main test dependencies
    - `.gitignore` - Worktree patterns
 5. **Pushes automatically** - By default, pushes to origin after merge (unless `-- --no-push` is used)
+6. **Auto-commits uncommitted changes** - If worktree has uncommitted changes, automatically commits them before merge with message: `chore: Auto-commit before merge to {branch}`
 
 **Script flags:**
 - `--update` - Automatically rebase the worktree branch before merging (recommended)

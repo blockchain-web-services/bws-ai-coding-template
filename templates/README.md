@@ -28,6 +28,8 @@ npm run worktree:merge feature-name -- --update      # Auto-rebase before merge
 npm run worktree:merge feature-name -- --no-push     # Skip auto-push
 npm run worktree:merge feature-name -- --update --no-push  # Combine flags
 
+# Note: Uncommitted changes in worktree are automatically committed before merge
+
 # Remove a worktree
 npm run worktree:remove feature-name
 ```
