@@ -5,35 +5,41 @@
 - CloudFormation stack names are NOT predictable - discover them from the CodePipeline configuration
 - Pipeline naming: `devops-{{REPOSITORY_NAME}}-staging` or `devops-{{REPOSITORY_NAME}}-prod`
 
-**AWS Profile Selection:**
+**AWS Profile and Region Selection:**
 
 Profile naming pattern: `<repo-name>-<environment>`
 
-Always detect the profile dynamically:
+Always detect the profile and region dynamically:
 ```bash
 REPO_NAME=$(node -p "const name = require('./package.json').name; name.startsWith('@') ? name.split('/')[1] : name")
 ENVIRONMENT=$(git branch --show-current)
 AWS_PROFILE="${REPO_NAME}-${ENVIRONMENT}"
+AWS_REGION="${AWS_REGION:-us-east-1}"
 ```
 
 Examples:
 - Repository: `bws-backoffice`, Branch: `staging` → Profile: `bws-backoffice-staging`
 - Repository: `bws-api`, Branch: `prod` → Profile: `bws-api-prod`
+- Region: Defaults to `us-east-1` (can be overridden by setting `AWS_REGION` environment variable)
+
+**IMPORTANT:** All AWS CLI commands must include both `--profile $AWS_PROFILE` and `--region $AWS_REGION`.
 
 ### Step 1: Discover CloudFormation Stack Names from CodePipeline
 
 **First, always discover the actual stack names from the pipeline:**
 
 ```bash
-# Set up AWS profile
+# Set up AWS profile and region
 REPO_NAME=$(node -p "const name = require('./package.json').name; name.startsWith('@') ? name.split('/')[1] : name")
 ENVIRONMENT=$(git branch --show-current)
 AWS_PROFILE="${REPO_NAME}-${ENVIRONMENT}"
+AWS_REGION="${AWS_REGION:-us-east-1}"
 
 # List all CloudFormation stacks deployed by current environment's pipeline
 aws codepipeline get-pipeline \
   --name devops-${REPO_NAME}-${ENVIRONMENT} \
-  --profile $AWS_PROFILE --region us-east-1 \
+  --profile $AWS_PROFILE \
+  --region $AWS_REGION \
   --query 'pipeline.stages[*].actions[?actionTypeId.provider==`CloudFormation`].[actionName,configuration.StackName]' \
   --output table
 ```
@@ -41,21 +47,24 @@ aws codepipeline get-pipeline \
 ### Step 2: List All Existing Stacks
 
 ```bash
-# Set up AWS profile
+# Set up AWS profile and region
 REPO_NAME=$(node -p "const name = require('./package.json').name; name.startsWith('@') ? name.split('/')[1] : name")
 ENVIRONMENT=$(git branch --show-current)
 AWS_PROFILE="${REPO_NAME}-${ENVIRONMENT}"
+AWS_REGION="${AWS_REGION:-us-east-1}"
 
 # List all stacks
 aws cloudformation list-stacks \
-  --profile $AWS_PROFILE --region us-east-1 \
+  --profile $AWS_PROFILE \
+  --region $AWS_REGION \
   --query 'StackSummaries[*].[StackName,StackStatus,LastUpdatedTime]' \
   --output table
 
 # Filter for active stacks only
 aws cloudformation list-stacks \
   --stack-status-filter CREATE_COMPLETE UPDATE_COMPLETE UPDATE_IN_PROGRESS \
-  --profile $AWS_PROFILE --region us-east-1 \
+  --profile $AWS_PROFILE \
+  --region $AWS_REGION \
   --query 'StackSummaries[*].[StackName,StackStatus]' \
   --output table
 

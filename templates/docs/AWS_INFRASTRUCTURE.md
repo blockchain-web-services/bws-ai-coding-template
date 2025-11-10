@@ -242,32 +242,37 @@ The `{{REPOSITORY_NAME}}` placeholder is automatically replaced during installat
 
 ## Deployment
 
-### AWS Profile Selection
+### AWS Profile and Region Selection
 
-**IMPORTANT:** Always use the correct AWS CLI profile for your environment.
+**IMPORTANT:** Always use the correct AWS CLI profile and region for your environment.
 
 **Profile Naming Pattern:** `<repo-name>-<environment>`
 
-Profile detection:
+Profile and region detection:
 ```bash
 REPO_NAME=$(node -p "const name = require('./package.json').name; name.startsWith('@') ? name.split('/')[1] : name")
 ENVIRONMENT=$(git branch --show-current)
 AWS_PROFILE="${REPO_NAME}-${ENVIRONMENT}"
+AWS_REGION="${AWS_REGION:-us-east-1}"
 ```
 
 Examples:
 - Repository: `bws-backoffice`, Branch: `staging` → Profile: `bws-backoffice-staging`
 - Repository: `bws-api`, Branch: `prod` → Profile: `bws-api-prod`
+- Region: Defaults to `us-east-1` (can be overridden by setting `AWS_REGION` environment variable)
+
+**IMPORTANT:** All AWS CLI commands must include both `--profile $AWS_PROFILE` and `--region $AWS_REGION`.
 
 ### Manual Deployment
 
 #### Deploy Database Stack
 
 ```bash
-# Set up AWS profile
+# Set up AWS profile and region
 REPO_NAME=$(node -p "const name = require('./package.json').name; name.startsWith('@') ? name.split('/')[1] : name")
 ENVIRONMENT=$(git branch --show-current)
 AWS_PROFILE="${REPO_NAME}-${ENVIRONMENT}"
+AWS_REGION="${AWS_REGION:-us-east-1}"
 
 # Deploy to current environment
 aws cloudformation deploy \
@@ -281,10 +286,11 @@ aws cloudformation deploy \
 #### Deploy Infrastructure Stack
 
 ```bash
-# Set up AWS profile
+# Set up AWS profile and region
 REPO_NAME=$(node -p "const name = require('./package.json').name; name.startsWith('@') ? name.split('/')[1] : name")
 ENVIRONMENT=$(git branch --show-current)
 AWS_PROFILE="${REPO_NAME}-${ENVIRONMENT}"
+AWS_REGION="${AWS_REGION:-us-east-1}"
 
 # Deploy to current environment
 aws cloudformation deploy \
@@ -382,10 +388,11 @@ Outputs:
 4. Deploy:
 
 ```bash
-# Set up AWS profile
+# Set up AWS profile and region
 REPO_NAME=$(node -p "const name = require('./package.json').name; name.startsWith('@') ? name.split('/')[1] : name")
 ENVIRONMENT=$(git branch --show-current)
 AWS_PROFILE="${REPO_NAME}-${ENVIRONMENT}"
+AWS_REGION="${AWS_REGION:-us-east-1}"
 
 aws cloudformation deploy \
   --template-file .deploy/IaC/db/db.yml \
@@ -418,10 +425,11 @@ MyFunction:
 3. Deploy:
 
 ```bash
-# Set up AWS profile
+# Set up AWS profile and region
 REPO_NAME=$(node -p "const name = require('./package.json').name; name.startsWith('@') ? name.split('/')[1] : name")
 ENVIRONMENT=$(git branch --show-current)
 AWS_PROFILE="${REPO_NAME}-${ENVIRONMENT}"
+AWS_REGION="${AWS_REGION:-us-east-1}"
 
 aws cloudformation deploy \
   --template-file .deploy/IaC/infra/infra.yml \
@@ -454,10 +462,11 @@ Resources:
 Deploy with:
 
 ```bash
-# Set up AWS profile
+# Set up AWS profile and region
 REPO_NAME=$(node -p "const name = require('./package.json').name; name.startsWith('@') ? name.split('/')[1] : name")
 ENVIRONMENT=$(git branch --show-current)
 AWS_PROFILE="${REPO_NAME}-${ENVIRONMENT}"
+AWS_REGION="${AWS_REGION:-us-east-1}"
 
 aws cloudformation deploy \
   --template-file .deploy/IaC/infra/infra.yml \
