@@ -117,10 +117,14 @@ npm run worktree:merge <branch-name> -- --update --no-push  # Combine flags
 
 Merges the worktree branch into your current branch using `--no-ff` to preserve history. This command:
 - Validates the worktree exists
+- **Fetches from origin** to ensure parent branch is up to date
+- **Checks if local parent branch is behind remote** - exits with error if out of sync
 - Auto-commits any uncommitted changes in the worktree (with message: `chore: Auto-commit before merge to {branch}`)
 - Performs the merge
 - Preserves merge commit for traceability
 - Automatically pushes to origin (unless `-- --no-push` is used)
+
+**Safety check:** If someone else has pushed changes to the remote parent branch (e.g., from another computer or via GitHub Actions), the script will detect this and exit with instructions to update your local branch first.
 
 ### Remove a Worktree
 
