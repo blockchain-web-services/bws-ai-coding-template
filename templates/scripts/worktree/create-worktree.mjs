@@ -34,6 +34,37 @@ function detectParentBranch() {
 }
 
 /**
+ * Get repository name from package.json
+ * @returns {string} Repository name (without scope)
+ */
+function getRepoName() {
+    try {
+        const packageJsonPath = join(rootDir, 'package.json');
+        const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8'));
+        let name = packageJson.name;
+
+        // Remove scope prefix if exists (@org/repo-name → repo-name)
+        if (name && name.startsWith('@')) {
+            name = name.split('/')[1] || name;
+        }
+
+        return name || 'project';
+    } catch (error) {
+        return 'project';
+    }
+}
+
+/**
+ * Generate AWS CLI profile name based on repo and environment
+ * @param {string} environment - Environment name (staging, prod, etc.)
+ * @returns {string} AWS profile name
+ */
+function getAwsProfileName(environment) {
+    const repoName = getRepoName();
+    return `${repoName}-${environment}`;
+}
+
+/**
  * Prompt user for input using readline
  */
 function promptUser(question) {
@@ -299,11 +330,34 @@ Press Enter to skip, or type 'y' to add context: `);
     }
 
     // Build CLAUDE_INSTRUCTIONS.md content
+    const awsProfile = getAwsProfileName(parentBranch);
     const claudeInstructionsContent = `# Claude Code Instructions - Worktree: ${branchName}
 
 **Created**: ${new Date().toISOString()}
 **Branch**: ${branchName}
 **Parent Branch**: ${parentBranch}
+**AWS CLI Profile**: \`${awsProfile}\`
+
+---
+
+## AWS CLI Profile
+
+When running AWS CLI commands, always use the correct profile for this environment:
+
+\`\`\`bash
+# Profile naming pattern: <repo-name>-<environment>
+# Current profile: ${awsProfile}
+
+# Example AWS CLI commands:
+aws cloudformation describe-stacks --profile ${awsProfile}
+aws codepipeline get-pipeline-state --name devops-${getRepoName()}-${parentBranch} --profile ${awsProfile}
+aws s3 ls --profile ${awsProfile}
+\`\`\`
+
+**Profile Detection:**
+- Repository: \`${getRepoName()}\`
+- Environment: \`${parentBranch}\`
+- AWS Profile: \`${awsProfile}\`
 
 ---
 

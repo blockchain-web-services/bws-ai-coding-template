@@ -9,21 +9,44 @@ Deployment operations with git workflow execution and automated deployment monit
 
 ## AWS Profile Selection
 
-**IMPORTANT:** AWS CLI commands must use the correct profile based on the target environment:
+**IMPORTANT:** AWS CLI commands must use the correct profile based on repository and environment.
 
-- **Staging deployments:** Use `--profile staging` when working with the `staging` branch
-- **Production deployments:** Use `--profile prod` when working with the `prod` branch
-- **Default:** If no branch/environment is specified, use `--profile staging`
+**Profile Naming Pattern:** `<repo-name>-<environment>`
 
-**Examples:**
+### Profile Detection
+
+Always detect the profile dynamically:
+
+```bash
+# Get repository name from package.json (remove scope if exists)
+REPO_NAME=$(node -p "const name = require('./package.json').name; name.startsWith('@') ? name.split('/')[1] : name")
+
+# Get current branch (environment)
+ENVIRONMENT=$(git branch --show-current)
+
+# Construct AWS CLI profile
+AWS_PROFILE="${REPO_NAME}-${ENVIRONMENT}"
+```
+
+### Profile Examples
+
+- Repository: `bws-backoffice`, Branch: `staging` → Profile: `bws-backoffice-staging`
+- Repository: `bws-api`, Branch: `prod` → Profile: `bws-api-prod`
+- Repository: `@blockchain-web-services/bws-backoffice`, Branch: `staging` → Profile: `bws-backoffice-staging`
+
+### Usage in AWS CLI Commands
+
 ```bash
 # Deploying to staging
 git push origin staging
-aws codepipeline get-pipeline-state --name devops-{{REPOSITORY_NAME}}-staging --profile staging --region us-east-1
+aws codepipeline get-pipeline-state --name devops-${REPO_NAME}-staging --profile ${REPO_NAME}-staging --region us-east-1
 
 # Deploying to production
 git push origin prod
-aws codepipeline get-pipeline-state --name devops-{{REPOSITORY_NAME}}-prod --profile prod --region us-east-1
+aws codepipeline get-pipeline-state --name devops-${REPO_NAME}-prod --profile ${REPO_NAME}-prod --region us-east-1
+
+# With variables
+aws cloudformation describe-stacks --profile $AWS_PROFILE --region us-east-1
 ```
 
 ## ⚠️ Pre-Flight Safety Checks
@@ -104,9 +127,14 @@ find .deploy -name "*.yml" 2>/dev/null
 
 **Check existing stacks:**
 ```bash
-# List all active stacks (use --profile staging or --profile prod based on target environment)
+# First, set up AWS profile
+REPO_NAME=$(node -p "const name = require('./package.json').name; name.startsWith('@') ? name.split('/')[1] : name")
+ENVIRONMENT=$(git branch --show-current)
+AWS_PROFILE="${REPO_NAME}-${ENVIRONMENT}"
+
+# List all active stacks
 aws cloudformation list-stacks --stack-status-filter CREATE_COMPLETE UPDATE_COMPLETE \
-  --profile staging --region us-east-1 \
+  --profile $AWS_PROFILE --region us-east-1 \
   --query 'StackSummaries[*].[StackName,StackStatus]' \
   --output table
 ```
@@ -268,19 +296,23 @@ gh run list --branch $CURRENT_BRANCH --limit 20 \
 
 **CloudFormation deployments:**
 ```bash
-# First, discover stack names from the pipeline
-# Use --profile staging for staging deployments, --profile prod for production
+# First, set up AWS profile
+REPO_NAME=$(node -p "const name = require('./package.json').name; name.startsWith('@') ? name.split('/')[1] : name")
+ENVIRONMENT=$(git branch --show-current)
+AWS_PROFILE="${REPO_NAME}-${ENVIRONMENT}"
+
+# Discover stack names from the pipeline
 aws codepipeline get-pipeline \
-  --name devops-{{REPOSITORY_NAME}}-staging \
-  --profile staging --region us-east-1 \
+  --name devops-${REPO_NAME}-${ENVIRONMENT} \
+  --profile $AWS_PROFILE --region us-east-1 \
   --query 'pipeline.stages[*].actions[?actionTypeId.provider==`CloudFormation`].configuration.StackName' \
   --output table
 
-# Then monitor stack events (use actual stack name and matching profile)
+# Then monitor stack events (use actual stack name)
 aws cloudformation describe-stack-events \
   --stack-name <actual-stack-name> \
   --query 'StackEvents[*].[Timestamp,ResourceStatus,ResourceType,LogicalResourceId]' \
-  --output table --profile staging --region us-east-1
+  --output table --profile $AWS_PROFILE --region us-east-1
 ```
 
 See [GitHub Actions Reference](reference/github-actions.md) for detailed monitoring commands.
@@ -336,19 +368,23 @@ gh run list --branch $CURRENT_BRANCH --limit 20 --repo {{GITHUB_USERNAME}}/{{REP
 
 **If workflow deploys CloudFormation:** Monitor stack events
 ```bash
-# First, get stack name from pipeline (use matching profile for target environment)
-# For staging: --profile staging, for prod: --profile prod
+# First, set up AWS profile
+REPO_NAME=$(node -p "const name = require('./package.json').name; name.startsWith('@') ? name.split('/')[1] : name")
+ENVIRONMENT=$(git branch --show-current)
+AWS_PROFILE="${REPO_NAME}-${ENVIRONMENT}"
+
+# Get stack name from pipeline
 STACK_NAME=$(aws codepipeline get-pipeline \
-  --name devops-{{REPOSITORY_NAME}}-staging \
-  --profile staging --region us-east-1 \
+  --name devops-${REPO_NAME}-${ENVIRONMENT} \
+  --profile $AWS_PROFILE --region us-east-1 \
   --query 'pipeline.stages[0].actions[?actionTypeId.provider==`CloudFormation`].configuration.StackName' \
   --output text | head -1)
 
-# Then watch deployment progress (use same profile)
+# Then watch deployment progress
 watch -n 5 "aws cloudformation describe-stack-events \
   --stack-name $STACK_NAME \
   --max-items 10 --query 'StackEvents[*].[Timestamp,ResourceStatus,LogicalResourceId]' \
-  --output table --profile staging --region us-east-1"
+  --output table --profile $AWS_PROFILE --region us-east-1"
 ```
 
 **Check for failures:**
@@ -357,17 +393,20 @@ watch -n 5 "aws cloudformation describe-stack-events \
 gh run list --status=failure --limit 1
 
 # Failed CloudFormation resources (discover stack name from pipeline first)
-# Use --profile staging or --profile prod based on target environment
+REPO_NAME=$(node -p "const name = require('./package.json').name; name.startsWith('@') ? name.split('/')[1] : name")
+ENVIRONMENT=$(git branch --show-current)
+AWS_PROFILE="${REPO_NAME}-${ENVIRONMENT}"
+
 STACK_NAME=$(aws codepipeline get-pipeline \
-  --name devops-{{REPOSITORY_NAME}}-staging \
-  --profile staging --region us-east-1 \
+  --name devops-${REPO_NAME}-${ENVIRONMENT} \
+  --profile $AWS_PROFILE --region us-east-1 \
   --query 'pipeline.stages[0].actions[?actionTypeId.provider==`CloudFormation`].configuration.StackName' \
   --output text | head -1)
 
 aws cloudformation describe-stack-events \
   --stack-name $STACK_NAME \
   --query "StackEvents[?ResourceStatus=='CREATE_FAILED' || ResourceStatus=='UPDATE_FAILED']" \
-  --profile staging --region us-east-1
+  --profile $AWS_PROFILE --region us-east-1
 ```
 
 See [Troubleshooting](troubleshooting.md) for common deployment issues.
@@ -399,25 +438,35 @@ For detailed GitHub Actions commands, see [GitHub Actions Reference](reference/g
 ### Check Pipeline Status
 
 ```bash
-# Staging pipeline
-aws codepipeline get-pipeline-state \
-  --name devops-{{REPOSITORY_NAME}}-staging --profile staging --region us-east-1
+# Set up AWS profile
+REPO_NAME=$(node -p "const name = require('./package.json').name; name.startsWith('@') ? name.split('/')[1] : name")
+ENVIRONMENT=$(git branch --show-current)
+AWS_PROFILE="${REPO_NAME}-${ENVIRONMENT}"
 
-# Production pipeline
+# Check current environment's pipeline
 aws codepipeline get-pipeline-state \
-  --name devops-{{REPOSITORY_NAME}}-prod --profile prod --region us-east-1
+  --name devops-${REPO_NAME}-${ENVIRONMENT} --profile $AWS_PROFILE --region us-east-1
+
+# Examples for specific environments:
+# For staging: AWS_PROFILE="${REPO_NAME}-staging"
+# For production: AWS_PROFILE="${REPO_NAME}-prod"
 ```
 
 ### List Recent Executions
 
 ```bash
-# Staging pipeline executions
-aws codepipeline list-pipeline-executions \
-  --pipeline-name devops-{{REPOSITORY_NAME}}-staging --max-items 5 --profile staging --region us-east-1
+# Set up AWS profile
+REPO_NAME=$(node -p "const name = require('./package.json').name; name.startsWith('@') ? name.split('/')[1] : name")
+ENVIRONMENT=$(git branch --show-current)
+AWS_PROFILE="${REPO_NAME}-${ENVIRONMENT}"
 
-# Production pipeline executions
+# List recent executions for current environment
 aws codepipeline list-pipeline-executions \
-  --pipeline-name devops-{{REPOSITORY_NAME}}-prod --max-items 5 --profile prod --region us-east-1
+  --pipeline-name devops-${REPO_NAME}-${ENVIRONMENT} --max-items 5 --profile $AWS_PROFILE --region us-east-1
+
+# Examples for specific environments:
+# For staging: AWS_PROFILE="${REPO_NAME}-staging"
+# For production: AWS_PROFILE="${REPO_NAME}-prod"
 ```
 
 For detailed CodePipeline commands, see [CodePipeline Reference](reference/codepipeline.md).
@@ -495,10 +544,14 @@ gh run list --status=failure --limit 1
 gh run view <run-id> --log | grep -i "error"
 
 # 3. Check CloudFormation failures
+REPO_NAME=$(node -p "const name = require('./package.json').name; name.startsWith('@') ? name.split('/')[1] : name")
+ENVIRONMENT=$(git branch --show-current)
+AWS_PROFILE="${REPO_NAME}-${ENVIRONMENT}"
+
 aws cloudformation describe-stack-events \
-  --stack-name myapp-infra-staging \
+  --stack-name myapp-infra-${ENVIRONMENT} \
   --query "StackEvents[?ResourceStatus=='CREATE_FAILED']" \
-  --profile staging --region us-east-1
+  --profile $AWS_PROFILE --region us-east-1
 ```
 
 For more scenarios, see [Common Scenarios](reference/scenarios.md).
@@ -514,12 +567,12 @@ For more scenarios, see [Common Scenarios](reference/scenarios.md).
 
 ### Deployment Monitoring
 - GitHub Actions: `gh run watch`
-- CodePipeline: `aws codepipeline get-pipeline-state --name devops-{{REPOSITORY_NAME}}-staging --profile staging --region us-east-1`
+- CodePipeline: `aws codepipeline get-pipeline-state --name devops-<repo-name>-<environment> --profile <repo-name>-<environment> --region us-east-1`
 - CloudFormation: Discover stack names from pipeline first (see CloudFormation Reference)
 
 ### Troubleshooting
 - Failed runs: `gh run list --status=failure`
-- Failed pipeline: `aws codepipeline get-pipeline-state --name devops-{{REPOSITORY_NAME}}-staging --profile staging`
+- Failed pipeline: `aws codepipeline get-pipeline-state --name devops-<repo-name>-<environment> --profile <repo-name>-<environment>`
 - Failed stacks: Discover stack name from pipeline, then check events (see CloudFormation Reference)
 - See [Troubleshooting](troubleshooting.md) for solutions
 

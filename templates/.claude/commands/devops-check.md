@@ -37,17 +37,25 @@ Determine the current deployment context:
 # Get current branch
 CURRENT_BRANCH=$(git branch --show-current)
 
-# Get repository name from git remote
-REPO_URL=$(git config --get remote.origin.url)
-# Extract owner and repo name from URL
-# Example: git@github.com:owner/repo.git -> owner/repo
+# Get repository name from package.json (remove scope if exists)
+REPO_NAME=$(node -p "const name = require('./package.json').name; name.startsWith('@') ? name.split('/')[1] : name")
+
+# Construct AWS CLI profile name: <repo-name>-<environment>
+AWS_PROFILE="${REPO_NAME}-${CURRENT_BRANCH}"
+
+# Examples:
+# - Repository: bws-backoffice, Branch: staging → Profile: bws-backoffice-staging
+# - Repository: bws-api, Branch: prod → Profile: bws-api-prod
 ```
 
-**Determine deployment environment:**
-- Branch `staging` → Staging environment → `--profile staging`
-- Branch `prod` → Production environment → `--profile prod`
-- Branch `main` or `master` → Staging environment (default) → `--profile staging`
-- Other branches → Check if branch has remote tracking
+**AWS Profile Naming Pattern:**
+- Format: `<repo-name>-<environment>`
+- Repository name is extracted from `package.json` (scope removed)
+- Environment is the current branch name
+- Examples:
+  - `bws-backoffice-staging`
+  - `bws-backoffice-prod`
+  - `bws-api-staging`
 
 ### Step 2: Detect Configured Systems
 
@@ -263,7 +271,7 @@ You are an AWS CodePipeline monitoring agent. Your job is to monitor the CodePip
    ```bash
    aws codepipeline get-pipeline-state \
      --name devops-{REPOSITORY_NAME}-{CURRENT_BRANCH} \
-     --profile {staging|prod} --region us-east-1 \
+     --profile $AWS_PROFILE --region us-east-1 \
      --query 'stageStates[*].[stageName,latestExecution.pipelineExecutionId,latestExecution.status]' \
      --output json
    ```
@@ -275,7 +283,7 @@ You are an AWS CodePipeline monitoring agent. Your job is to monitor the CodePip
    while true; do
        STATUS=$(aws codepipeline get-pipeline-state \
          --name devops-{REPOSITORY_NAME}-{CURRENT_BRANCH} \
-         --profile {staging|prod} --region us-east-1 \
+         --profile $AWS_PROFILE --region us-east-1 \
          --query 'stageStates[*].latestExecution.status' \
          --output text)
 
@@ -296,7 +304,7 @@ You are an AWS CodePipeline monitoring agent. Your job is to monitor the CodePip
    ```bash
    aws codepipeline get-pipeline-state \
      --name devops-{REPOSITORY_NAME}-{CURRENT_BRANCH} \
-     --profile {staging|prod} --region us-east-1
+     --profile $AWS_PROFILE --region us-east-1
    ```
 
 5. Check for failed stages and get their details:
@@ -304,7 +312,7 @@ You are an AWS CodePipeline monitoring agent. Your job is to monitor the CodePip
    # For each failed stage, get the action execution details
    aws codepipeline list-action-executions \
      --pipeline-name devops-{REPOSITORY_NAME}-{CURRENT_BRANCH} \
-     --profile {staging|prod} --region us-east-1 \
+     --profile $AWS_PROFILE --region us-east-1 \
      --filter pipelineExecutionId={EXECUTION_ID} \
      --query 'actionExecutionDetails[?status==`Failed`]'
    ```
@@ -314,14 +322,14 @@ You are an AWS CodePipeline monitoring agent. Your job is to monitor the CodePip
    # First, get the stack names from pipeline configuration
    aws codepipeline get-pipeline \
      --name devops-{REPOSITORY_NAME}-{CURRENT_BRANCH} \
-     --profile {staging|prod} --region us-east-1 \
+     --profile $AWS_PROFILE --region us-east-1 \
      --query 'pipeline.stages[*].actions[?actionTypeId.provider==`CloudFormation`].configuration.StackName' \
      --output text
 
    # For each failed stack, get events
    aws cloudformation describe-stack-events \
      --stack-name {STACK_NAME} \
-     --profile {staging|prod} --region us-east-1 \
+     --profile $AWS_PROFILE --region us-east-1 \
      --query 'StackEvents[?ResourceStatus==`CREATE_FAILED` || ResourceStatus==`UPDATE_FAILED` || ResourceStatus==`DELETE_FAILED`]' \
      --output json
    ```
@@ -710,7 +718,7 @@ This might mean:
    # CodePipeline
    aws codepipeline get-pipeline-state \
      --name devops-{REPO}-{BRANCH} \
-     --profile {staging|prod} --region us-east-1
+     --profile $AWS_PROFILE --region us-east-1
 ```
 
 ### If Multiple Failures

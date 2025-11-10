@@ -57,6 +57,23 @@ The `devops.yml` CloudFormation template creates a complete CI/CD pipeline that:
 
 ## Initial Setup
 
+### AWS Profile Selection
+
+**IMPORTANT:** Always use the correct AWS CLI profile for your environment.
+
+**Profile Naming Pattern:** `<repo-name>-<environment>`
+
+Profile detection:
+```bash
+REPO_NAME=$(node -p "const name = require('./package.json').name; name.startsWith('@') ? name.split('/')[1] : name")
+ENVIRONMENT=$(git branch --show-current)
+AWS_PROFILE="${REPO_NAME}-${ENVIRONMENT}"
+```
+
+Examples:
+- Repository: `bws-backoffice`, Branch: `staging` → Profile: `bws-backoffice-staging`
+- Repository: `bws-api`, Branch: `prod` → Profile: `bws-api-prod`
+
 ### Prerequisites
 
 1. AWS Account with appropriate permissions
@@ -75,31 +92,27 @@ The `devops.yml` CloudFormation template creates a complete CI/CD pipeline that:
 ### Deploy the Pipeline
 
 ```bash
-# Create the pipeline stack
+# Set up AWS profile
+REPO_NAME=$(node -p "const name = require('./package.json').name; name.startsWith('@') ? name.split('/')[1] : name")
+ENVIRONMENT=$(git branch --show-current)
+AWS_PROFILE="${REPO_NAME}-${ENVIRONMENT}"
+
+# Create the pipeline stack for current environment
 aws cloudformation create-stack \
-  --stack-name my-app-devops-staging \
+  --stack-name ${REPO_NAME}-devops-${ENVIRONMENT} \
   --template-body file://devops.yml \
   --parameters \
     ParameterKey=RepositoryOwner,ParameterValue=your-github-username \
-    ParameterKey=RepositoryName,ParameterValue=your-repo-name \
-    ParameterKey=RepositoryBranchName,ParameterValue=staging \
+    ParameterKey=RepositoryName,ParameterValue=$REPO_NAME \
+    ParameterKey=RepositoryBranchName,ParameterValue=$ENVIRONMENT \
     ParameterKey=GitHubSecret,ParameterValue=your-github-token \
-  --capabilities CAPABILITY_IAM
+  --capabilities CAPABILITY_IAM \
+  --profile $AWS_PROFILE
 
 # Wait for creation
 aws cloudformation wait stack-create-complete \
-  --stack-name my-app-devops-staging
-
-# Repeat for production
-aws cloudformation create-stack \
-  --stack-name my-app-devops-prod \
-  --template-body file://devops.yml \
-  --parameters \
-    ParameterKey=RepositoryOwner,ParameterValue=your-github-username \
-    ParameterKey=RepositoryName,ParameterValue=your-repo-name \
-    ParameterKey=RepositoryBranchName,ParameterValue=prod \
-    ParameterKey=GitHubSecret,ParameterValue=your-github-token \
-  --capabilities CAPABILITY_IAM
+  --stack-name ${REPO_NAME}-devops-${ENVIRONMENT} \
+  --profile $AWS_PROFILE
 ```
 
 ## GitHub Integration
@@ -388,16 +401,24 @@ git push origin staging
 4. **Monitor progress**:
 
 ```bash
+# Set up AWS profile
+REPO_NAME=$(node -p "const name = require('./package.json').name; name.startsWith('@') ? name.split('/')[1] : name")
+ENVIRONMENT=$(git branch --show-current)
+AWS_PROFILE="${REPO_NAME}-${ENVIRONMENT}"
+
 # View pipeline status
 aws codepipeline get-pipeline-state \
-  --name devops-my-app-staging
+  --name devops-${REPO_NAME}-${ENVIRONMENT} \
+  --profile $AWS_PROFILE
 
 # View build logs
 aws codebuild batch-get-builds \
   --ids $(aws codepipeline get-pipeline-state \
-    --name devops-my-app-staging \
+    --name devops-${REPO_NAME}-${ENVIRONMENT} \
+    --profile $AWS_PROFILE \
     --query 'stageStates[*].actionStates[*].latestExecution.externalExecutionId' \
-    --output text)
+    --output text) \
+  --profile $AWS_PROFILE
 ```
 
 5. **Deployment completes** (or fails with detailed logs)
@@ -469,9 +490,15 @@ curl -H "Authorization: token YOUR_TOKEN" \
 **Check CloudFormation events**:
 
 ```bash
+# Set up AWS profile
+REPO_NAME=$(node -p "const name = require('./package.json').name; name.startsWith('@') ? name.split('/')[1] : name")
+ENVIRONMENT=$(git branch --show-current)
+AWS_PROFILE="${REPO_NAME}-${ENVIRONMENT}"
+
 aws cloudformation describe-stack-events \
-  --stack-name app-db-staging \
-  --max-items 10
+  --stack-name app-db-${ENVIRONMENT} \
+  --max-items 10 \
+  --profile $AWS_PROFILE
 ```
 
 **Common issues**:
@@ -484,7 +511,12 @@ aws cloudformation describe-stack-events \
 **View build logs**:
 
 ```bash
-aws codebuild batch-get-builds --ids YOUR_BUILD_ID
+# Set up AWS profile
+REPO_NAME=$(node -p "const name = require('./package.json').name; name.startsWith('@') ? name.split('/')[1] : name")
+ENVIRONMENT=$(git branch --show-current)
+AWS_PROFILE="${REPO_NAME}-${ENVIRONMENT}"
+
+aws codebuild batch-get-builds --ids YOUR_BUILD_ID --profile $AWS_PROFILE
 ```
 
 **Common issues**:
@@ -498,8 +530,13 @@ aws codebuild batch-get-builds --ids YOUR_BUILD_ID
 **Verify webhook exists**:
 
 ```bash
+# Set up AWS profile
+REPO_NAME=$(node -p "const name = require('./package.json').name; name.startsWith('@') ? name.split('/')[1] : name")
+ENVIRONMENT=$(git branch --show-current)
+AWS_PROFILE="${REPO_NAME}-${ENVIRONMENT}"
+
 # Via AWS CLI
-aws codepipeline list-webhooks
+aws codepipeline list-webhooks --profile $AWS_PROFILE
 
 # Via GitHub
 # Go to repo Settings → Webhooks
@@ -516,32 +553,51 @@ aws codepipeline list-webhooks
 **Check Lambda logs**:
 
 ```bash
-aws logs tail /aws/lambda/staging-my-function --follow
+# Set up AWS profile
+REPO_NAME=$(node -p "const name = require('./package.json').name; name.startsWith('@') ? name.split('/')[1] : name")
+ENVIRONMENT=$(git branch --show-current)
+AWS_PROFILE="${REPO_NAME}-${ENVIRONMENT}"
+
+aws logs tail /aws/lambda/${ENVIRONMENT}-my-function --follow --profile $AWS_PROFILE
 ```
 
 **Check CloudWatch metrics**:
 
 ```bash
+# Set up AWS profile (same as above)
+REPO_NAME=$(node -p "const name = require('./package.json').name; name.startsWith('@') ? name.split('/')[1] : name")
+ENVIRONMENT=$(git branch --show-current)
+AWS_PROFILE="${REPO_NAME}-${ENVIRONMENT}"
+
 aws cloudwatch get-metric-statistics \
   --namespace AWS/Lambda \
   --metric-name Errors \
-  --dimensions Name=FunctionName,Value=staging-my-function \
+  --dimensions Name=FunctionName,Value=${ENVIRONMENT}-my-function \
   --start-time 2024-01-01T00:00:00Z \
   --end-time 2024-01-01T23:59:59Z \
   --period 3600 \
-  --statistics Sum
+  --statistics Sum \
+  --profile $AWS_PROFILE
 ```
 
 ### Rollback Deployment
 
 ```bash
+# Set up AWS profile
+REPO_NAME=$(node -p "const name = require('./package.json').name; name.startsWith('@') ? name.split('/')[1] : name")
+ENVIRONMENT=$(git branch --show-current)
+AWS_PROFILE="${REPO_NAME}-${ENVIRONMENT}"
+
 # Rollback to previous version
 aws cloudformation update-stack \
-  --stack-name app-infra-staging \
-  --use-previous-template
+  --stack-name app-infra-${ENVIRONMENT} \
+  --use-previous-template \
+  --profile $AWS_PROFILE
 
 # Or delete and recreate with old code
-aws cloudformation delete-stack --stack-name app-infra-staging
+aws cloudformation delete-stack \
+  --stack-name app-infra-${ENVIRONMENT} \
+  --profile $AWS_PROFILE
 # Then redeploy from last known good commit
 ```
 

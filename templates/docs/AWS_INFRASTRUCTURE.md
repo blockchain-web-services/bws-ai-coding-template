@@ -242,42 +242,57 @@ The `{{REPOSITORY_NAME}}` placeholder is automatically replaced during installat
 
 ## Deployment
 
+### AWS Profile Selection
+
+**IMPORTANT:** Always use the correct AWS CLI profile for your environment.
+
+**Profile Naming Pattern:** `<repo-name>-<environment>`
+
+Profile detection:
+```bash
+REPO_NAME=$(node -p "const name = require('./package.json').name; name.startsWith('@') ? name.split('/')[1] : name")
+ENVIRONMENT=$(git branch --show-current)
+AWS_PROFILE="${REPO_NAME}-${ENVIRONMENT}"
+```
+
+Examples:
+- Repository: `bws-backoffice`, Branch: `staging` → Profile: `bws-backoffice-staging`
+- Repository: `bws-api`, Branch: `prod` → Profile: `bws-api-prod`
+
 ### Manual Deployment
 
 #### Deploy Database Stack
 
 ```bash
-# Staging
-aws cloudformation deploy \
-  --template-file .deploy/IaC/db/db.yml \
-  --stack-name my-app-db-staging \
-  --parameter-overrides file://.deploy/IaC/db/configs/db-staging.json \
-  --capabilities CAPABILITY_IAM
+# Set up AWS profile
+REPO_NAME=$(node -p "const name = require('./package.json').name; name.startsWith('@') ? name.split('/')[1] : name")
+ENVIRONMENT=$(git branch --show-current)
+AWS_PROFILE="${REPO_NAME}-${ENVIRONMENT}"
 
-# Production
+# Deploy to current environment
 aws cloudformation deploy \
   --template-file .deploy/IaC/db/db.yml \
-  --stack-name my-app-db-prod \
-  --parameter-overrides file://.deploy/IaC/db/configs/db-prod.json \
-  --capabilities CAPABILITY_IAM
+  --stack-name my-app-db-${ENVIRONMENT} \
+  --parameter-overrides file://.deploy/IaC/db/configs/db-${ENVIRONMENT}.json \
+  --capabilities CAPABILITY_IAM \
+  --profile $AWS_PROFILE
 ```
 
 #### Deploy Infrastructure Stack
 
 ```bash
-# Staging
-aws cloudformation deploy \
-  --template-file .deploy/IaC/infra/infra.yml \
-  --stack-name my-app-infra-staging \
-  --parameter-overrides file://.deploy/IaC/infra/configs/infra-staging.json \
-  --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND
+# Set up AWS profile
+REPO_NAME=$(node -p "const name = require('./package.json').name; name.startsWith('@') ? name.split('/')[1] : name")
+ENVIRONMENT=$(git branch --show-current)
+AWS_PROFILE="${REPO_NAME}-${ENVIRONMENT}"
 
-# Production
+# Deploy to current environment
 aws cloudformation deploy \
   --template-file .deploy/IaC/infra/infra.yml \
-  --stack-name my-app-infra-prod \
-  --parameter-overrides file://.deploy/IaC/infra/configs/infra-prod.json \
-  --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND
+  --stack-name my-app-infra-${ENVIRONMENT} \
+  --parameter-overrides file://.deploy/IaC/infra/configs/infra-${ENVIRONMENT}.json \
+  --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND \
+  --profile $AWS_PROFILE
 ```
 
 ### Automated Deployment (CI/CD)
@@ -367,7 +382,17 @@ Outputs:
 4. Deploy:
 
 ```bash
-aws cloudformation deploy --template-file .deploy/IaC/db/db.yml ...
+# Set up AWS profile
+REPO_NAME=$(node -p "const name = require('./package.json').name; name.startsWith('@') ? name.split('/')[1] : name")
+ENVIRONMENT=$(git branch --show-current)
+AWS_PROFILE="${REPO_NAME}-${ENVIRONMENT}"
+
+aws cloudformation deploy \
+  --template-file .deploy/IaC/db/db.yml \
+  --stack-name my-app-db-${ENVIRONMENT} \
+  --parameter-overrides file://.deploy/IaC/db/configs/db-${ENVIRONMENT}.json \
+  --capabilities CAPABILITY_IAM \
+  --profile $AWS_PROFILE
 ```
 
 ### Adding a Lambda Function
@@ -393,7 +418,17 @@ MyFunction:
 3. Deploy:
 
 ```bash
-aws cloudformation deploy --template-file .deploy/IaC/infra/infra.yml ...
+# Set up AWS profile
+REPO_NAME=$(node -p "const name = require('./package.json').name; name.startsWith('@') ? name.split('/')[1] : name")
+ENVIRONMENT=$(git branch --show-current)
+AWS_PROFILE="${REPO_NAME}-${ENVIRONMENT}"
+
+aws cloudformation deploy \
+  --template-file .deploy/IaC/infra/infra.yml \
+  --stack-name my-app-infra-${ENVIRONMENT} \
+  --parameter-overrides file://.deploy/IaC/infra/configs/infra-${ENVIRONMENT}.json \
+  --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND \
+  --profile $AWS_PROFILE
 ```
 
 ### Using Outputs from Other Stacks
@@ -419,10 +454,17 @@ Resources:
 Deploy with:
 
 ```bash
+# Set up AWS profile
+REPO_NAME=$(node -p "const name = require('./package.json').name; name.startsWith('@') ? name.split('/')[1] : name")
+ENVIRONMENT=$(git branch --show-current)
+AWS_PROFILE="${REPO_NAME}-${ENVIRONMENT}"
+
 aws cloudformation deploy \
   --template-file .deploy/IaC/infra/infra.yml \
+  --profile $AWS_PROFILE \
   --parameter-overrides UsersTableName=$(aws cloudformation describe-stacks \
-    --stack-name my-app-db-staging \
+    --stack-name my-app-db-${ENVIRONMENT} \
+    --profile $AWS_PROFILE \
     --query 'Stacks[0].Outputs[?OutputKey==`UsersTableName`].OutputValue' \
     --output text)
 ```
@@ -482,14 +524,19 @@ For read-only debugging access with Claude Code, create an IAM user with these p
 ### Usage
 
 ```bash
-# Configure AWS CLI for Claude Code
-aws configure --profile claude-code
+# Configure AWS CLI profile for Claude Code read-only access
+# Use the same profile naming pattern: <repo-name>-<environment>
+REPO_NAME=$(node -p "const name = require('./package.json').name; name.startsWith('@') ? name.split('/')[1] : name")
+ENVIRONMENT="staging"  # or "prod" for production
+AWS_PROFILE="${REPO_NAME}-${ENVIRONMENT}"
+
+aws configure --profile $AWS_PROFILE
 AWS Access Key ID: AKIA...
 AWS Secret Access Key: ...
 Default region: us-east-1
 
 # Claude Code can now read data for debugging
-aws dynamodb scan --table-name staging-USERS --profile claude-code
+aws dynamodb scan --table-name ${ENVIRONMENT}-USERS --profile $AWS_PROFILE
 ```
 
 ## See Also
