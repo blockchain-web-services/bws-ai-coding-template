@@ -5,11 +5,11 @@ on:
     branches:
       - master
     paths:
-      - 'package.json'
-      - 'bin/**'
-      - 'lib/**'
-      - 'templates/**'
-      - '.github/workflows/publish.yml'
+      - "package.json"
+      - "bin/**"
+      - "lib/**"
+      - "templates/**"
+      - ".github/workflows/publish.yml"
 
 jobs:
   publish:
@@ -18,7 +18,7 @@ jobs:
     permissions:
       contents: read
       packages: write
-      id-token: write  # Required for npm Trusted Publisher (OIDC)
+      id-token: write # Required for npm Trusted Publisher (OIDC)
 
     steps:
       - name: Checkout code
@@ -27,8 +27,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
-          registry-url: 'https://registry.npmjs.org'
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
 
       - name: Get package version
         id: package
@@ -48,31 +48,22 @@ jobs:
             echo "✅ Version ${{ steps.package.outputs.version }} is new"
           fi
 
-      - name: Install dependencies
-        if: steps.check-npm.outputs.exists == 'false'
-        run: npm install
-
-      # Publish to npmjs.org using Trusted Publisher (OIDC)
-      - name: Publish to npmjs.org
-        if: steps.check-npm.outputs.exists == 'false'
-        run: |
-          echo "📤 Publishing to npmjs.org with provenance..."
-          # Remove .npmrc created by setup-node to allow OIDC
-          rm -f ~/.npmrc
-          rm -f $NPM_CONFIG_USERCONFIG
-          # Configure registry without auth token
-          npm config set registry https://registry.npmjs.org/
-          npm publish --provenance --access public
-          echo "✅ Published to npmjs.org with provenance attestation"
+      # Ensure npm 11.5.1 or later is installed
+      - name: Update npm
+        run: npm install -g npm@latest
+      - run: npm ci
+      - run: npm run build --if-present
+      - run: npm test
+      - run: npm publish
 
       # Reconfigure for GitHub Packages
       - name: Setup Node.js for GitHub Packages
         if: steps.check-npm.outputs.exists == 'false'
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
-          registry-url: 'https://npm.pkg.github.com'
-          scope: '@blockchain-web-services'
+          node-version: "18"
+          registry-url: "https://npm.pkg.github.com"
+          scope: "@blockchain-web-services"
 
       # Publish to GitHub Packages
       - name: Publish to GitHub Packages
