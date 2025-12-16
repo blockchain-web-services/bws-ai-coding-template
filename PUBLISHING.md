@@ -352,52 +352,45 @@ Users can install:
 npm install @blockchain-web-services/bws-ai-coding-template@beta
 ```
 
-## Automated Publishing (GitHub Actions)
+## Automated Publishing (GitHub Actions) ✅ Recommended
 
-Create `.github/workflows/publish.yml`:
+### Using npm Trusted Publisher (OIDC)
 
-```yaml
-name: Publish Package
+This repository is configured with **npm Trusted Publisher** for secure, token-free automated publishing. The GitHub Action is already set up at `.github/workflows/publish.yml`.
 
-on:
-  push:
-    tags:
-      - 'v*'
+**How to publish:**
 
-jobs:
-  publish:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
+```bash
+# 1. Bump version on your branch
+npm version patch  # or minor/major
 
-    steps:
-      - uses: actions/checkout@v3
+# 2. Push and create PR
+git push origin feature/your-branch
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '18'
-          registry-url: 'https://npm.pkg.github.com'
-          scope: '@blockchain-web-services'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Publish to GitHub Packages
-        run: npm publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+# 3. Merge to main
+# → GitHub Action automatically publishes to both npm and GitHub Packages! 🚀
 ```
 
-Then publish by creating a tag:
+**Key Features:**
+- ✅ No npm token management required
+- ✅ Automatic provenance attestation
+- ✅ Publishes to both npmjs.org and GitHub Packages
+- ✅ Smart version detection (skips if already published)
+
+**For detailed information:**
+- [Workflow Documentation](.github/workflows/README.md)
+- [Trusted Publisher Setup](.github/workflows/TRUSTED_PUBLISHER.md)
+
+### Legacy Tag-Based Publishing
+
+You can also trigger publishing by creating a git tag:
 
 ```bash
 npm version patch
 git push origin main --tags
 ```
 
-GitHub Actions will automatically publish!
+**Note**: The current workflow is triggered by direct pushes to `main`, not by tags. Modify `.github/workflows/publish.yml` if you prefer tag-based triggers.
 
 ## Checklist
 

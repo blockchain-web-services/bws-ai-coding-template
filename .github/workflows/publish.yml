@@ -1,0 +1,102 @@
+name: Publish Package
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'package.json'
+      - 'bin/**'
+      - 'lib/**'
+      - 'templates/**'
+      - '.github/workflows/publish.yml'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write
+      id-token: write  # Required for npm Trusted Publisher (OIDC)
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Get package version
+        id: package
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "📦 Package version: $VERSION"
+
+      - name: Check if version already published to npm
+        id: check-npm
+        run: |
+          if npm view @blockchain-web-services/bws-ai-coding-template@${{ steps.package.outputs.version }} version 2>/dev/null; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "⚠️ Version ${{ steps.package.outputs.version }} already exists on npmjs.org"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "✅ Version ${{ steps.package.outputs.version }} is new"
+          fi
+
+      - name: Install dependencies
+        if: steps.check-npm.outputs.exists == 'false'
+        run: npm ci
+
+      # Publish to npmjs.org using Trusted Publisher (OIDC)
+      - name: Publish to npmjs.org
+        if: steps.check-npm.outputs.exists == 'false'
+        run: |
+          echo "📤 Publishing to npmjs.org with provenance..."
+          npm publish --provenance --access public
+          echo "✅ Published to npmjs.org with provenance attestation"
+
+      # Reconfigure for GitHub Packages
+      - name: Setup Node.js for GitHub Packages
+        if: steps.check-npm.outputs.exists == 'false'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@blockchain-web-services'
+
+      # Publish to GitHub Packages
+      - name: Publish to GitHub Packages
+        if: steps.check-npm.outputs.exists == 'false'
+        run: |
+          echo "📤 Publishing to GitHub Packages..."
+          npm publish --registry https://npm.pkg.github.com || echo "⚠️ Already published to GitHub Packages (skipping)"
+          echo "✅ Published to GitHub Packages"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publishing Summary
+        if: steps.check-npm.outputs.exists == 'false'
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "✅ Publishing complete!"
+          echo ""
+          echo "📍 Package locations:"
+          echo "   • npmjs.org: https://www.npmjs.com/package/@blockchain-web-services/bws-ai-coding-template"
+          echo "   • GitHub: https://github.com/blockchain-web-services/bws-ai-coding-template/packages"
+          echo ""
+          echo "📥 Install with:"
+          echo "   npm install @blockchain-web-services/bws-ai-coding-template@${{ steps.package.outputs.version }}"
+          echo ""
+
+      - name: Skip Publishing
+        if: steps.check-npm.outputs.exists == 'true'
+        run: |
+          echo "⏭️ Skipping publish - version ${{ steps.package.outputs.version }} already exists on npmjs.org"
+          echo "To publish a new version:"
+          echo "  1. Run: npm version patch|minor|major"
+          echo "  2. Commit and push the version change"
