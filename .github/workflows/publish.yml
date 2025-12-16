@@ -51,12 +51,13 @@ jobs:
       # Install dependencies (use npm install since package-lock.json is gitignored)
       - name: Install dependencies
         if: steps.check-npm.outputs.exists == 'false'
-        run: npm install
+        run: npm install -g npm@latest
 
       # Publish to npmjs.org with provenance (OIDC via Trusted Publisher)
       - name: Publish to npmjs.org
         if: steps.check-npm.outputs.exists == 'false'
         run: |
+          npm run build --if-present
           npm publish
 
       # Reconfigure for GitHub Packages
