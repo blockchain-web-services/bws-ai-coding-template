@@ -48,13 +48,15 @@ jobs:
             echo "✅ Version ${{ steps.package.outputs.version }} is new"
           fi
 
-      # Ensure npm 11.5.1 or later is installed
-      - name: Update npm
-        run: npm install -g npm@latest
-      - run: npm ci
-      - run: npm run build --if-present
-      - run: npm test
-      - run: npm publish
+      # Install dependencies (use npm install since package-lock.json is gitignored)
+      - name: Install dependencies
+        if: steps.check-npm.outputs.exists == 'false'
+        run: npm install
+
+      # Publish to npmjs.org with provenance (OIDC via Trusted Publisher)
+      - name: Publish to npmjs.org
+        if: steps.check-npm.outputs.exists == 'false'
+        run: npm publish --provenance --access public
 
       # Reconfigure for GitHub Packages
       - name: Setup Node.js for GitHub Packages
