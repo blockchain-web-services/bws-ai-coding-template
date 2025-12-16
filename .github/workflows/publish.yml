@@ -28,13 +28,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '18'
-          # No registry-url - let npm use OIDC directly
-
-      - name: Configure npm for OIDC
-        run: |
-          echo "Setting npm registry without authentication token"
-          npm config set registry https://registry.npmjs.org/
-          # OIDC will be used automatically with --provenance flag
+          registry-url: 'https://registry.npmjs.org'
 
       - name: Get package version
         id: package
@@ -63,6 +57,8 @@ jobs:
         if: steps.check-npm.outputs.exists == 'false'
         run: |
           echo "📤 Publishing to npmjs.org with provenance..."
+          # Unset NODE_AUTH_TOKEN so npm uses OIDC instead
+          unset NODE_AUTH_TOKEN
           npm publish --provenance --access public
           echo "✅ Published to npmjs.org with provenance attestation"
 
