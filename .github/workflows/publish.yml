@@ -28,7 +28,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-          registry-url: "https://registry.npmjs.org"
+          # Don't set registry-url - it creates .npmrc with token auth that interferes with OIDC
 
       - name: Get package version
         id: package
@@ -56,7 +56,10 @@ jobs:
       # Publish to npmjs.org with provenance (OIDC via Trusted Publisher)
       - name: Publish to npmjs.org
         if: steps.check-npm.outputs.exists == 'false'
-        run: npm publish --provenance --access public
+        run: |
+          # Configure npm registry without token auth (OIDC will be used automatically)
+          npm config set registry https://registry.npmjs.org/
+          npm publish --provenance --access public
 
       # Reconfigure for GitHub Packages
       - name: Setup Node.js for GitHub Packages
