@@ -28,8 +28,13 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '18'
-          # Don't set registry-url when using Trusted Publisher/OIDC
-          # This prevents token-based auth from interfering with OIDC
+          # No registry-url - let npm use OIDC directly
+
+      - name: Configure npm for OIDC
+        run: |
+          echo "Setting npm registry without authentication token"
+          npm config set registry https://registry.npmjs.org/
+          # OIDC will be used automatically with --provenance flag
 
       - name: Get package version
         id: package
