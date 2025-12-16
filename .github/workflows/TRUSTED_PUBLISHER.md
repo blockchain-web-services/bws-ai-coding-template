@@ -59,7 +59,7 @@ Trusted Publisher is npm's implementation of OpenID Connect (OIDC) authenticatio
 
 - **Repository**: `blockchain-web-services/bws-ai-coding-template`
 - **Workflow File**: `.github/workflows/publish.yml`
-- **Branch**: `main`
+- **Branch**: `master`
 - **Required Permission**: `id-token: write`
 
 ### Workflow Configuration
@@ -153,11 +153,11 @@ permissions:
 
 ### Test Publishing
 
-Trigger a publish by bumping version and pushing to main:
+Trigger a publish by bumping version and pushing to master:
 
 ```bash
 npm version patch
-git push origin main
+git push origin master
 ```
 
 Watch the workflow at:

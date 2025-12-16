@@ -4,11 +4,11 @@
 
 ### Overview
 
-The `publish.yml` workflow automatically publishes the package to both **npmjs.org** and **GitHub Packages** when changes are merged to the `main` branch.
+The `publish.yml` workflow automatically publishes the package to both **npmjs.org** and **GitHub Packages** when changes are merged to the `master` branch.
 
 ### How It Works
 
-1. **Trigger**: Runs when changes are pushed to `main` branch that affect:
+1. **Trigger**: Runs when changes are pushed to `master` branch that affect:
    - `package.json` (version changes)
    - `bin/**` (CLI code)
    - `lib/**` (library code)
@@ -76,18 +76,18 @@ The `GITHUB_TOKEN` is automatically provided by GitHub Actions and has permissio
    ```
 
 4. **Create and merge pull request**
-   - Create PR to merge feature branch into `main`
+   - Create PR to merge feature branch into `master`
    - Get approval and merge
    - **The GitHub Action will automatically publish!**
 
-#### Alternative: Direct to Main (Not Recommended)
+#### Alternative: Direct to Master (Not Recommended)
 
-If you have direct push access to `main`:
+If you have direct push access to `master`:
 
 ```bash
-# On main branch
+# On master branch
 npm version patch
-git push origin main
+git push origin master
 
 # GitHub Action publishes automatically
 ```
@@ -134,7 +134,7 @@ After workflow completes:
    - Check that GitHub Actions integration is properly set up
 2. Verify workflow has `id-token: write` permission
 3. Check that repository and workflow names match the Trusted Publisher configuration
-4. Ensure the action is running from the `main` branch (if configured that way)
+4. Ensure the action is running from the `master` branch (if configured that way)
 
 #### Publishing Failed: Version Already Exists
 
@@ -246,7 +246,7 @@ git add .
 git commit -m "feat: Description"
 npm version patch
 git push origin feature/my-feature
-# Create PR, merge to main → Auto-publish!
+# Create PR, merge to master → Auto-publish!
 
 # Check published version
 npm view @blockchain-web-services/bws-ai-coding-template version

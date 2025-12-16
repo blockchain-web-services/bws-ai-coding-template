@@ -367,7 +367,7 @@ npm version patch  # or minor/major
 # 2. Push and create PR
 git push origin feature/your-branch
 
-# 3. Merge to main
+# 3. Merge to master
 # → GitHub Action automatically publishes to both npm and GitHub Packages! 🚀
 ```
 
@@ -387,10 +387,10 @@ You can also trigger publishing by creating a git tag:
 
 ```bash
 npm version patch
-git push origin main --tags
+git push origin master --tags
 ```
 
-**Note**: The current workflow is triggered by direct pushes to `main`, not by tags. Modify `.github/workflows/publish.yml` if you prefer tag-based triggers.
+**Note**: The current workflow is triggered by direct pushes to `master`, not by tags. Modify `.github/workflows/publish.yml` if you prefer tag-based triggers.
 
 ## Checklist
 
