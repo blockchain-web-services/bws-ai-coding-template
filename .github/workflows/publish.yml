@@ -57,8 +57,11 @@ jobs:
         if: steps.check-npm.outputs.exists == 'false'
         run: |
           echo "📤 Publishing to npmjs.org with provenance..."
-          # Unset NODE_AUTH_TOKEN so npm uses OIDC instead
-          unset NODE_AUTH_TOKEN
+          # Remove .npmrc created by setup-node to allow OIDC
+          rm -f ~/.npmrc
+          rm -f $NPM_CONFIG_USERCONFIG
+          # Configure registry without auth token
+          npm config set registry https://registry.npmjs.org/
           npm publish --provenance --access public
           echo "✅ Published to npmjs.org with provenance attestation"
 
