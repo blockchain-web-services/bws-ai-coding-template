@@ -3,6 +3,7 @@
 > Git worktree management and parallel testing toolkit for Node.js projects
 
 [![npm version](https://badge.fury.io/js/%40blockchain-web-services%2Fbws-ai-coding-template.svg)](https://www.npmjs.com/package/@blockchain-web-services/bws-ai-coding-template)
+[![Publish Package](https://github.com/blockchain-web-services/bws-ai-coding-template/actions/workflows/publish.yml/badge.svg?branch=master)](https://github.com/blockchain-web-services/bws-ai-coding-template/actions/workflows/publish.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## Features

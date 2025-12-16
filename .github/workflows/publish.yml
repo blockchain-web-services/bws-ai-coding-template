@@ -50,7 +50,7 @@ jobs:
 
       - name: Install dependencies
         if: steps.check-npm.outputs.exists == 'false'
-        run: npm ci
+        run: npm install
 
       # Publish to npmjs.org using Trusted Publisher (OIDC)
       - name: Publish to npmjs.org
