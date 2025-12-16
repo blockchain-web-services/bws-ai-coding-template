@@ -28,7 +28,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '18'
-          registry-url: 'https://registry.npmjs.org'
+          # Don't set registry-url when using Trusted Publisher/OIDC
+          # This prevents token-based auth from interfering with OIDC
 
       - name: Get package version
         id: package
