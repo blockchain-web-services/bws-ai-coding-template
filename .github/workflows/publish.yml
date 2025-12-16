@@ -57,9 +57,7 @@ jobs:
       - name: Publish to npmjs.org
         if: steps.check-npm.outputs.exists == 'false'
         run: |
-          # Configure npm registry without token auth (OIDC will be used automatically)
-          npm config set registry https://registry.npmjs.org/
-          npm publish --provenance --access public
+          npm publish
 
       # Reconfigure for GitHub Packages
       - name: Setup Node.js for GitHub Packages
