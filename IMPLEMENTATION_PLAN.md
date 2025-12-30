@@ -27,7 +27,7 @@ This is an NPM package that adds worktree management and parallel testing infras
 
 #### bin/init.js
 - [x] Created with basic structure
-- [ ] Add command-line argument parsing (--dry-run, --skip-aws, --skip-test)
+- [ ] Add command-line argument parsing (--dry-run, --add-aws, --force)
 - [ ] Add error handling and graceful exit
 
 #### lib/cli.js
@@ -360,10 +360,10 @@ export async function processTemplateFile(sourcePath, destPath, replacements) {
   - Shows what would be installed without actually copying
   - Useful for preview
 
-- [ ] Add `--skip-aws` flag
+- [ ] Add `--add-aws` flag
   - Skip AWS-related files even if user says yes to AWS
 
-- [ ] Add `--skip-test` flag
+- [ ] Add `--force` flag
   - Skip test folder even with AWS
 
 - [ ] Add `--help` command

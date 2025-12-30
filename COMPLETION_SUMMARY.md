@@ -78,7 +78,7 @@ Successfully implemented a complete npm package for git worktree management and 
 - Commander CLI argument parsing
 - Version display
 - Help documentation
-- Flags: --dry-run, --skip-aws, --skip-test, --force
+- Flags: --dry-run, --add-aws, --force
 - Error handling and exit codes
 
 ### Phase 2: Documentation Files ✅

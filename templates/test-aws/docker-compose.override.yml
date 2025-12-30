@@ -1,0 +1,16 @@
+# Docker Compose Override - Environment-Specific Configuration
+# This file can be customized or generated for worktree environments
+
+name: ${COMPOSE_PROJECT_NAME:-app-local-tests}
+
+services:
+  localstack:
+    container_name: ${WORKTREE_CONTAINER_PREFIX:-app-local}-localstack
+    environment:
+      - LOCALSTACK_HOST=${WORKTREE_CONTAINER_PREFIX:-app-local}-localstack
+    ports:
+      - "${LOCALSTACK_PORT:-4567}:4566"
+
+networks:
+  app-network:
+    name: ${WORKTREE_NETWORK:-app-network-main}

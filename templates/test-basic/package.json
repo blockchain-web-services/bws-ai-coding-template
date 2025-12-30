@@ -1,0 +1,18 @@
+{
+  "name": "{{PROJECT_NAME}}-tests",
+  "version": "1.0.0",
+  "description": "Test suite for {{PROJECT_NAME}}",
+  "type": "module",
+  "scripts": {
+    "test": "playwright test",
+    "test:ui": "playwright test --ui",
+    "test:headed": "playwright test --headed",
+    "test:debug": "playwright test --debug"
+  },
+  "keywords": [],
+  "author": "{{GITHUB_USERNAME}}",
+  "license": "MIT",
+  "devDependencies": {
+    "@playwright/test": "^1.40.0"
+  }
+}

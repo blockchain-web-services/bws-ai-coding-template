@@ -30,12 +30,14 @@ worktree-init
 
 ### Always Installed:
 - ✅ Worktree management scripts (`scripts/worktree/`)
-- ✅ Documentation (`docs/`)
+- ✅ Documentation (`docs/worktrees/`)
+- ✅ Basic test setup with Playwright (`test/`)
+- ✅ GitHub Actions workflow for testing (`.github/workflows/test.yml`)
 - ✅ `.gitignore` patterns for worktrees
 - ✅ NPM scripts for worktree commands
 
-### Optional (if you choose AWS deployment):
-- ✅ Test infrastructure with LocalStack (`test/`)
+### Optional (with --add-aws flag):
+- ✅ LocalStack test infrastructure (added to `test/`)
 - ✅ CloudFormation templates (`.deploy/`)
 - ✅ CI/CD pipeline (`devops.yml`)
 
@@ -43,9 +45,10 @@ worktree-init
 
 The installer will ask you:
 
-1. **Project name** - Auto-detected from `package.json`
+1. **Project name** - Auto-detected from `package.json` or directory name
 2. **GitHub username** - For repository configuration
-3. **AWS deployments** - Whether to include AWS infrastructure and testing
+
+**Note**: To include AWS infrastructure, use the `--add-aws` flag when running the installer.
 
 ## Safety Features
 
@@ -126,11 +129,11 @@ After installation, see `docs/` folder for:
 # Dry run (see what would be installed)
 npx @blockchain-web-services/bws-ai-coding-template --dry-run
 
-# Skip AWS infrastructure
-npx @blockchain-web-services/bws-ai-coding-template --skip-aws
+# Include AWS infrastructure and test templates (optional)
+npx @blockchain-web-services/bws-ai-coding-template --add-aws
 
-# Skip test folder
-npx @blockchain-web-services/bws-ai-coding-template --skip-test
+# Force update all files (use with caution)
+npx @blockchain-web-services/bws-ai-coding-template --force
 ```
 
 ## Development Status

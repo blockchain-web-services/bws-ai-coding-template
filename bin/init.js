@@ -33,15 +33,13 @@ program
     .description('Add git worktree management and parallel testing to your Node.js project')
     .version(packageData.version)
     .option('--dry-run', 'Preview what would be installed without making changes')
-    .option('--skip-aws', 'Skip AWS deployment files even if prompted')
-    .option('--skip-test', 'Skip test infrastructure files')
+    .option('--add-aws', 'Include AWS deployment files and test infrastructure')
     .option('--force', 'Force update all files, including AWS templates (use with caution)')
     .action(async (options) => {
         try {
             await runCLI({
                 dryRun: options.dryRun || false,
-                skipAWS: options.skipAws || false,
-                skipTest: options.skipTest || false,
+                addAWS: options.addAws || false,
                 forceUpdate: options.force || false
             });
         } catch (error) {

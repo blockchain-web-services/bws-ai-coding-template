@@ -1,0 +1,52 @@
+name: Test
+
+on:
+  pull_request:
+    branches:
+      - master
+      - main
+      - staging
+  push:
+    branches:
+      - master
+      - main
+      - staging
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [18, 20]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+          cache-dependency-path: test/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ./test
+        run: npm install
+
+      - name: Install Playwright browsers
+        working-directory: ./test
+        run: npx playwright install --with-deps
+
+      - name: Run tests
+        working-directory: ./test
+        run: npm test
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-node-${{ matrix.node-version }}
+          path: test/playwright-report/
+          retention-days: 7

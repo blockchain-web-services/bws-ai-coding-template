@@ -146,7 +146,7 @@ Based on IMPLEMENTATION_PLAN.md:
 1. **HIGH**: Complete lib/*.js stubs (cli.js, prompts.js, validators.js, file-copier.js)
 2. **HIGH**: Create lib/template-processor.js for variable replacement
 3. **MEDIUM**: Create templates/docs/ folder with 7 documentation files
-4. **MEDIUM**: Add CLI flags (--dry-run, --skip-aws, --skip-test, --help)
+4. **MEDIUM**: Add CLI flags (--dry-run, --add-aws, --force, --help)
 5. **LOW**: Testing and NPM publishing
 
 ## Development Guidelines
